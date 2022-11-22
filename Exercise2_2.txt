@@ -1,0 +1,419 @@
+Adversarial CHERI Exercises and Missions 
+========================================
+
+Here is a high-level experience report of Exercise 2.2. I hope this format and level of detail is helpful. If not, please advise.
+
+---------
+
+Exercise 2.2: "Disassemble and Debug RISC-V and CHERI-RISC-V programs"
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/debug-and-disassemble/index.html
+
+This tutorial assumes a different setup than the one we have. Therefore, these exercises will have to be adapted where possible, skipped where impossible.
+
+Assumptions follow from experience of Exercise 2.1 and won't be restated here.
+
+--------
+
+1. Using llvm-objdump -dS, disassemble the print-pointer-riscv and print-pointer-cheri binaries.
+
+--
+
+As we know, these were both built for CHERI targets so only intended to keep examining print-pointer-riscv as long as I can get anything interesting out of it.
+
+I disassembled my print-pointer-riscv for all the little-endian targets available. They were not sufficiently interesting/distinctive to keep pursuing.
+
+My non-CHERI binary is cheri_apple, built on my local x86_64 machine.
+
+file cheri_apple
+cheri_apple: Mach-O 64-bit executable x86_64
+
+I disassembled cheri_apple (objdump -dS -s cheri_apple).
+
+I tried to decipher one entire section of this file because I am not familiar with assembly.
+
+I output it to the file objdump_from_cheri_apple.txt. 
+It is included here if you want to look at it, but I'm not asking you to.
+It is commented for my own reference up to the point where I found the answer to question 2. 
+
+I disassembled print-pointer-cheri (llvm-objdump -dS -s --triple=aarch64 print-pointer-cheri).
+
+I output it to the file objdump_from_print_pointer_cheri.txt. 
+It is included here if you want to look at it, but I'm not asking you to.
+I did not add any comments to it.
+
+---------
+
+2. What jump instruction is used to call printf() in print-pointer-riscv [ie our cheri_apple]? Where does the target address for that jump originate?
+
+--
+
+In section "__TEXT,__text" we have this:
+
+100003f3d: e8 1c 00 00 00              	callq	0x100003f5e <dyld_stub_binder+0x100003f5e>
+
+It's the first of two callq instructions which transfers control to section "__TEXT,__stubs":
+
+100003f5e: ff 25 9c 40 00 00           	jmpq	*16540(%rip)  # 100008000 <dyld_stub_binder+0x100008000>
+
+This is an unconditional jump with bitwidth 8. The target is the value at the return address + 16450.
+
+--------
+
+3. What jump instruction is used to call printf() in print-pointer-cheri? Where does the target capability for that jump originate? (Hint, you may find it helpful to add the -s flag to your llvm-objdump command to see all sections.)
+
+--
+
+Their expected answer https://ctsrd-cheri.github.io/cheri-exercises/exercises/debug-and-disassemble/answers.html has a different sequence of instructions I don't have in my output, and in a section I don't have in my output either.
+
+My output has the instructions documented here: 
+https://documentation-service.arm.com/static/61e577e1b691546d37bd38a0?token=
+
+I tried to decipher one entire section of this file because I'm not familiar with assembly.
+
+It's clear that bl, branch with link, is the one because it's labelled with printf in the main section, and is the only one that does anything comparable to a jump:
+
+   10a88: 00 cc 42 c2  	ldr	c0, [c0, #2864]
+   10a8c: 21 00 00 94  	bl	0x10b10 <printf+0x10b10>
+   
+What I don't understand is why I can't find the program label 0x10b10 elsewhere in the output, whereas I could find it in the cheri_apple output.
+
+-----------
+
+4. Run print-pointer-riscv [ie our cheri_apple] under GDB, setting a breakpoint at the start of printf(). Note: GDB can't find the run-time linker of binaries of the non-default ABI on its own so you need to invoke set program-interpreter /libexec/ld-elf64.so.1 before running the program.
+
+--
+
+[/libexec/ld-elf64.so.1 is only found on the riscv-purecap QEMU. It's documented nowhere that I can find. I therefore don't know if this exercise will pan out as intended on my local machine.]
+
+break 10
+Breakpoint 1 at 0x100003f2f: file cheri_apple.c, line 10.
+
+-----
+
+5. Run the program and at the breakpoint, print out the value of the string pointer argument.
+
+--
+
+r outputs:
+
+Thread 3 hit Breakpoint 1, main () at cheri_apple.c:10
+10	    printf("size of pointer: %zu\n", sizeof(void *));
+
+info reg rip
+rip            0x100003f2f         0x100003f2f <main+15>
+
+----
+
+6. Use info proc mappings in GDB to print out the layout of the process address space.
+
+--
+
+info proc mappings
+Not supported on this target.
+
+Drat.
+
+-----
+
+7. Print out the program counter (info reg pc). What memory mapping is it derived from?
+
+--
+
+
+info reg pc
+pc             0x100003f2f         0x100003f2f <main+15>
+
+It's derived from rip, which is the return address. 
+
+=================================
+
+Now for riscv-morello-purecap.
+
+Tried running natively on bencher14 until I couldn't any more. So questions 8 through 11 are run on both.
+
+--------
+
+8. Run print-pointer-cheri under GDB, setting a breakpoint at the start of printf()
+
+--
+
+Natively on Bencher 14:
+
+b printf
+Breakpoint 1 at 0x1030
+
+--
+
+on QEMU morello:
+
+b printf
+Breakpoint 1 at 0x10b18
+
+--------
+
+9. Print out the value of the string pointer argument.
+
+--
+
+Natively on Bencher 14:
+
+r
+Starting program: /home/holiver/cheri-examples/a.out 
+
+Breakpoint 1, __printf (format=0x555555556004 "size of pointer: %zu\n")
+    at printf.c:28
+28	printf.c: No such file or directory.
+
+p format
+$1 = 0x555555556004 "size of pointer: %zu\n"
+
+--
+
+On QEMU morello:
+
+r
+Starting program: /root/print-pointer-cheri 
+
+Breakpoint 1, printf (fmt=0x100707 [rR,0x100707-0x10071d] "size of pointer: %zu\n") at /home/holiver/cheri/cheribsd/lib/libc/stdio/printf.c:57
+57      /home/holiver/cheri/cheribsd/lib/libc/stdio/printf.c: No such file or directory.
+
+p fmt
+$1 = 0x100707 [rR,0x100707-0x10071d] "size of pointer: %zu\n"
+
+---------
+
+10. Use info proc mappings in GDB to print out the layout of the process address space.
+
+--
+
+Natively on bencher 14: 
+
+info proc mappings
+process 654588
+Mapped address spaces:
+
+          Start Addr           End Addr       Size     Offset objfile
+      0x555555554000     0x555555555000     0x1000        0x0 /home/holiver/cheri-examples/a.out
+      0x555555555000     0x555555556000     0x1000     0x1000 /home/holiver/cheri-examples/a.out
+      0x555555556000     0x555555557000     0x1000     0x2000 /home/holiver/cheri-examples/a.out
+      0x555555557000     0x555555558000     0x1000     0x2000 /home/holiver/cheri-examples/a.out
+      0x555555558000     0x555555559000     0x1000     0x3000 /home/holiver/cheri-examples/a.out
+      0x7ffff7de5000     0x7ffff7e07000    0x22000        0x0 /usr/lib/x86_64-linux-gnu/libc-2.31.so
+      0x7ffff7e07000     0x7ffff7f61000   0x15a000    0x22000 /usr/lib/x86_64-linux-gnu/libc-2.31.so
+      0x7ffff7f61000     0x7ffff7fb0000    0x4f000   0x17c000 /usr/lib/x86_64-linux-gnu/libc-2.31.so
+      0x7ffff7fb0000     0x7ffff7fb4000     0x4000   0x1ca000 /usr/lib/x86_64-linux-gnu/libc-2.31.so
+      0x7ffff7fb4000     0x7ffff7fb6000     0x2000   0x1ce000 /usr/lib/x86_64-li--Type <RET> for more, q to quit, c to continue without paging--
+nux-gnu/libc-2.31.so
+      0x7ffff7fb6000     0x7ffff7fbc000     0x6000        0x0 
+      0x7ffff7fcd000     0x7ffff7fd0000     0x3000        0x0 [vvar]
+      0x7ffff7fd0000     0x7ffff7fd2000     0x2000        0x0 [vdso]
+      0x7ffff7fd2000     0x7ffff7fd3000     0x1000        0x0 /usr/lib/x86_64-linux-gnu/ld-2.31.so
+      0x7ffff7fd3000     0x7ffff7ff3000    0x20000     0x1000 /usr/lib/x86_64-linux-gnu/ld-2.31.so
+      0x7ffff7ff3000     0x7ffff7ffb000     0x8000    0x21000 /usr/lib/x86_64-linux-gnu/ld-2.31.so
+      0x7ffff7ffc000     0x7ffff7ffd000     0x1000    0x29000 /usr/lib/x86_64-linux-gnu/ld-2.31.so
+      0x7ffff7ffd000     0x7ffff7ffe000     0x1000    0x2a000 /usr/lib/x86_64-linux-gnu/ld-2.31.so
+      0x7ffff7ffe000     0x7ffff7fff000     0x1000        0x0 
+      0x7ffffffde000     0x7ffffffff000    0x21000        0x0 [stack]
+
+--
+      
+On QEMU morello:
+
+process 1014
+Mapped address spaces:
+
+          Start Addr           End Addr       Size     Offset   Flags   File
+            0x100000           0x101000     0x1000        0x0  r-- CN-- /root/print-pointer-cheri
+            0x101000           0x110000     0xf000     0x1000  --- ---- 
+            0x110000           0x111000     0x1000        0x0  r-x C--- /root/print-pointer-cheri
+            0x111000           0x120000     0xf000    0x11000  --- ---- 
+            0x120000           0x121000     0x1000        0x0  r-- C--- /root/print-pointer-cheri
+            0x121000           0x130000     0xf000    0x21000  --- ---- 
+            0x130000           0x131000     0x1000        0x0  rw- ---- 
+          0x40130000         0x40138000     0x8000        0x0  r-- CN-- /libexec/ld-elf.so.1
+          0x40138000         0x40147000     0xf000     0x8000  --- ---- 
+          0x40147000         0x40161000    0x1a000     0x7000  r-x C--- /libexec/ld-elf.so.1
+          0x40161000         0x40170000     0xf000    0x31000  --- ---- 
+          0x40170000         0x40173000     0x3000    0x20000  rw- C--- /libexec/ld-elf.so.1
+          0x40173000         0x40182000     0xf000    0x43000  --- ---- 
+          0x40182000         0x40183000     0x1000    0x22000  rw- C--- /libexec/ld-elf.so.1
+          0x40183000         0x40185000     0x2000        0x0  rw- ---- 
+          0x40185000         0x40186000     0x1000     0x2000  rw- ---- 
+          0x40186000         0x4018d000     0x7000     0x3000  rw- ---- 
+          0x4018d000         0x4018f000     0x2000        0x0  --- CN-- 
+          0x40190000         0x40220000    0x90000        0x0  r-- CN-- /lib/libc.so.7
+          0x40220000         0x4022f000     0xf000    0x90000  --- CN-- 
+          0x4022f000         0x4035d000   0x12e000    0x8f000  r-x C--- /lib/libc.so.7
+--Type <RET> for more, q to quit, c to continue without paging--
+          0x4035d000         0x4036c000     0xf000   0x1cd000  --- CN-- 
+          0x4036c000         0x40388000    0x1c000   0x1bc000  r-- C--- /lib/libc.so.7
+          0x40388000         0x40397000     0xf000   0x1f8000  --- CN-- 
+          0x40397000         0x403a3000     0xc000   0x1d7000  rw- C--- /lib/libc.so.7
+          0x403a3000         0x407dc000   0x439000        0x0  rw- ---- 
+          0x407dc000         0x40804000    0x28000        0x0  rw- ---- 
+          0x40804000         0x40a04000   0x200000    0x28000  rw- ---- 
+          0x60000000         0x60200000   0x200000        0x0  rw- ---- 
+          0x80000000         0x80600000   0x600000        0x0  rw- ---- 
+      0xffffbff00000     0xffffbff80000    0x80000        0x0  rw- ---- 
+      0xffffbff80000     0xfffffff60000 0x3ffe0000        0x0  --- ---- 
+      0xfffffff60000     0xfffffff80000    0x20000        0x0  rw- ---D 
+      0xfffffffff000    0x1000000000000     0x1000        0x0  r-x ---- 
+
+------
+
+11. Print out the program counter (info reg pcc). What memory mapping is it derived from? Where do its bounds appear to originate from?
+
+--
+
+Natively on bencher14:
+
+info reg pcc
+Invalid register `pcc'
+
+info reg pc
+pc             0x7ffff7e38cf0      0x7ffff7e38cf0 <__printf>
+
+After this point I won't try any of these natively on bencher14 but only on QEMU morello.
+
+--
+
+On QEMU morello:
+
+info reg pcc
+
+pcc            0xb05fc0003dc6190700000000402af5e0 0x402af5e0 <printf+16> [rxRE,0x40190000-0x407dc000]
+
+And the capability points at:
+0x40220000         0x4022f000     0xf000    0x90000  --- CN-- 
+
+-----
+
+12. Print out the register file using info registers. 
+
+--
+
+(gdb) info registers
+x0             0x100707            1050375
+x1             0xffffbff7f880      281473902442624
+x2             0xffffbff7f8a0      281473902442656
+x3             0x4014d369          1075106665
+x4             0x403bc620          1077659168
+x5             0xfffffff7dec0      281474976177856
+x6             0x401e9938          1075747128
+x7             0x4032e3a1          1077076897
+x8             0x10                16
+x9             0xfffffff7ff60      281474976186208
+x10            0x0                 0
+x11            0x427               1063
+x12            0x0                 0
+x13            0xffffffffffffffff  -1
+x14            0xffffffffffffffff  -1
+x15            0x76ab5c3e          1990941758
+x16            0x402af5d1          1076557265
+x17            0xfffffff7ff40      281474976186176
+x18            0x403a2950          1077553488
+x19            0x4014d369          1075106665
+x20            0xffffbff7f8a0      281473902442656
+x21            0xffffbff7f880      281473902442624
+x22            0x1                 1
+x23            0x0                 0
+x24            0x0                 0
+--Type <RET> for more, q to quit, c to continue without paging--
+x25            0x0                 0
+x26            0x0                 0
+x27            0x0                 0
+x28            0x0                 0
+x29            0xfffffff7ff40      281474976186176
+x30            0x110a91            1116817
+sp             0xfffffff7ff20      281474976186144
+pc             0x402af5e0          1076557280
+cpsr           0x84000200          [ EL=0 D BTYPE=0 C64 N ]
+fpsr           0x0                 [ ]
+fpcr           0x0                 [ RMode=0 ]
+c0             0x905f4000471d07070000000000100707 0x100707 [rR,0x100707-0x10071d]
+c1             0xdc5d400078a0f8800000ffffbff7f880 0xffffbff7f880 [rwRW,0xffffbff7f880-0xffffbff7f8a0]
+c2             0xdc5d400079a0f8a00000ffffbff7f8a0 0xffffbff7f8a0 [rwRW,0xffffbff7f8a0-0xffffbff7f9a0]
+c3             0xb05dc000844f3003000000004014d369 0x4014d369 <rtld_nop_exit> [rxRE,0x40130000-0x40184480] (sentry)
+c4             0xdc5fc0004de0c5c000000000403bc620 0x403bc620 [rwRWE,0x403bc5c0-0x403bcde0]
+c5             0xdc5d40003ffdbfff0000fffffff7dec0 0xfffffff7dec0 [rwRW,0xffffbff80000-0xfffffff80000]
+c6             0xb05fc0003dc6190700000000401e9938 0x401e9938 [rxRE,0x40190000-0x407dc000]
+c7             0xb05fc000bdc61907000000004032e3a1 0x4032e3a1 <extent_split_default> [rxRE,0x40190000-0x407dc000] (sentry)
+c8             0x10                0x10
+c9             0x9c5d40007f70ff600000fffffff7ff60 0xfffffff7ff60 [rRW,0xfffffff7ff60-0xfffffff7ff70]
+c10            0x0                 0x0
+c11            0x427               0x427
+c12            0x0                 0x0
+c13            0xffffffffffffffff  0xffffffffffffffff
+--Type <RET> for more, q to quit, c to continue without paging--
+c14            0xffffffffffffffff  0xffffffffffffffff
+c15            0x76ab5c3e          0x76ab5c3e
+c16            0xb05fc000bdc6190700000000402af5d1 0x402af5d1 <printf> [rxRE,0x40190000-0x407dc000] (sentry)
+c17            0xdc5d40003ffdbfff0000fffffff7ff40 0xfffffff7ff40 [rwRW,0xffffbff80000-0xfffffff80000]
+c18            0xdc5fc0006960295000000000403a2950 0x403a2950 [rwRWE,0x403a2950-0x403a2960]
+c19            0xb05dc000844f3003000000004014d369 0x4014d369 <rtld_nop_exit> [rxRE,0x40130000-0x40184480] (sentry)
+c20            0xdc5d400079a0f8a00000ffffbff7f8a0 0xffffbff7f8a0 [rwRW,0xffffbff7f8a0-0xffffbff7f9a0]
+c21            0xdc5d400078a0f8800000ffffbff7f880 0xffffbff7f880 [rwRW,0xffffbff7f880-0xffffbff7f8a0]
+c22            0x1                 0x1
+c23            0x0                 0x0
+c24            0x0                 0x0
+c25            0x0                 0x0
+c26            0x0                 0x0
+c27            0x0                 0x0
+c28            0x0                 0x0
+c29            0xdc5d40003ffdbfff0000fffffff7ff40 0xfffffff7ff40 [rwRW,0xffffbff80000-0xfffffff80000]
+c30            0xb05dc000a1d700040000000000110a91 0x110a91 <main+64> [rxRE,0x100000-0x130e80] (sentry)
+csp            0xdc5d40003ffdbfff0000fffffff7ff20 0xfffffff7ff20 [rwRW,0xffffbff80000-0xfffffff80000]
+pcc            0xb05fc0003dc6190700000000402af5e0 0x402af5e0 <printf+16> [rxRE,0x40190000-0x407dc000]
+ddc            0x0                 0x0
+ctpidr         0xdc5d400014efc01700000000407fc020 0x407fc020 [rwRW,0x407fc010-0x408014e8]
+rcsp           0x0                 0x0
+rddc           0x0                 0x0
+rctpidr        0x0                 0x0
+cid            0x0                 0x0
+--Type <RET> for more, q to quit, c to continue without paging--
+cctlr          <unavailable>
+
+--
+
+Q. What mappings do the capabilities in the register file point to? 
+
+--
+
+C0 starts at x0
+C1 and C21 have the same start and end addresses
+C1 and C21 start at x1 and x21
+C1 and C21 end at x2 and x20 
+C1 and C21 end at the start of C2 and C20
+C2 and C20 have the same start and end addresses
+C2 and C20 start at x2 and x20
+C2 and C20 have the same end address as C21
+C3 and C19 have the same start and end addresses, and both are sentries
+C4 has a unique start and end address and is a sentry
+C5, C17, C29 and csp have the same start and end addresses
+C6, C7, C16 and pcc have the same start and end addresses, and C7 and C16 are sentries 
+C8 has the same value as x8
+C9 has the same value as x9
+C10, C12, C23-C28, x10, x12, x23-x28, fpsr, fpcr, ddc, rcsp, rddc, rctpidr and cid all have the same value (0x0)
+C11 has the same value as x11
+C13, C14, x13 and x14 have the same value (-1)
+C15 has the same value as x15
+C18 starts at x18
+C22 has the same value as x22
+C30 has a unique start and end address and is a sentry
+ctipdr has a unique start and end address
+
+--
+
+Q. Notice that some capabilities are labeled with (sentry) (or (sealed) in the case of older versions of GDB which do not distinguish sentries from other sealed capabilities). Sentry capabilities are sealed (cannot be modified or used to load or store), but can be used as a jump target (where they are unsealed and installed in pcc). What implications does this have for attackers?
+
+--
+
+It is late and I am tired, but what this effectively seems to be saying is that "sentry capabilities are sealed [...] but can be [...] unsealed and installed in pcc"
+In other words: sentry capabilities can be unsealed IFF you execute them next.
+
+I am not familiar with this stuff but I'm guessing it has something to do with this: https://www.semanticscholar.org/paper/The-Program-Counter-Security-Model%3A-Automatic-and-Molnar-Piotrowski/6c8beb7b8b7d04f3d8fb1947cafa6f79baae6189
+
+am I right? (I haven't read it)
+
+====

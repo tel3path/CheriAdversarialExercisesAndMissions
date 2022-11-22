@@ -1,0 +1,104 @@
+
+cheri_apple:	file format mach-o 64-bit x86-64
+
+Contents of section __TEXT,__text:
+ 100003f20 554889e5 4883ec10 c745fc00 00000048  UH..H....E.....H
+ 100003f30 8d3d4800 0000be08 000000b0 00e81c00  .=H.............
+ 100003f40 0000488d 3d4b0000 00be0800 0000b000  ..H.=K..........
+ 100003f50 e8090000 0031c048 83c4105d c3        .....1.H...].
+Contents of section __TEXT,__stubs:
+ 100003f5e ff259c40 0000                        .%.@..
+Contents of section __TEXT,__stub_helper:
+ 100003f64 4c8d1d9d 40000041 53ff258d 00000090  L...@..AS.%.....
+ 100003f74 68000000 00e9e6ff ffff               h.........
+Contents of section __TEXT,__cstring:
+ 100003f7e 73697a65 206f6620 706f696e 7465723a  size of pointer:
+ 100003f8e 20257a75 0a007369 7a65206f 66206164   %zu..size of ad
+ 100003f9e 64726573 733a2025 7a750a00           dress: %zu..
+Contents of section __TEXT,__unwind_info:
+ 100003fac 01000000 1c000000 00000000 1c000000  ................
+ 100003fbc 00000000 1c000000 02000000 203f0000  ............ ?..
+ 100003fcc 34000000 34000000 5e3f0000 00000000  4...4...^?......
+ 100003fdc 34000000 03000000 0c000100 10000100  4...............
+ 100003fec 00000000 00000001                    ........
+Contents of section __DATA_CONST,__got:
+ 100004000 00000000 00000000                    ........
+Contents of section __DATA,__la_symbol_ptr:
+ 100008000 743f0000 01000000                    t?......
+Contents of section __DATA,__data:
+ 100008008 00000000 00000000                    ........
+
+Disassembly of section __TEXT,__text:
+
+0000000100003f20 <_main>:
+// push immediate value of %rbp onto stack
+// %rbp is a local variable, caller-owned
+100003f20: 55                          	pushq	%rbp 
+// I infer that %rsp is the stack pointer
+// suffix "q" after mov indicates bit width of 8 bytes
+// (at least according to https://web.stanford.edu/class/archive/cs/cs107/cs107.1186/guide/x86-64.html
+// which I will assume applies to this more than it does not apply)
+//
+// copy value from caller-owned local variable to stack pointer
+100003f21: 48 89 e5                    	movq	%rsp, %rbp
+// adjust stack pointer to set aside 16 more bytes
+100003f24: 48 83 ec 10                 	subq	$16, %rsp
+// indirect move, with displacement:
+// write the immediate value 0 to base %rbp (local variable caller owned) minus  4
+// suffix "l" indicates bit width of 4 bytes
+100003f28: c7 45 fc 00 00 00 00        	movl	$0, -4(%rbp)
+// For the lea (load effective address) instruction, 
+// the source operand is a memory location 
+// (using an addressing mode from above) 
+// and it copies the calculated source address to destination. 
+// Note that lea does not dereference the source address, 
+// it simply calculates its location. 
+// This means lea is nothing more than an arithmetic operation 
+// and commonly used to calculate the value of simple linear combinations 
+// that have nothing to do with memory locations!
+// so source address is %rip (return address) + 72, 
+// destination address is %rdi which is the first argument (callee owned)
+// and the q means bit width of 8 bytes
+100003f2f: 48 8d 3d 48 00 00 00        	leaq	72(%rip), %rdi  # 100003f7e <dyld_stub_binder+0x100003f7e>
+// now we do a direct move of the value 8
+// to %esi (low 32-bits of %rsi which is 2nd argument, caller-owned)
+// bit width of 4 bytes
+100003f36: be 08 00 00 00              	movl	$8, %esi
+// direct move of the value 0 to %al which is low 8-bit
+// subregister of %rax (return value, callee-owned)
+// bit width of 1 byte
+100003f3b: b0 00                       	movb	$0, %al
+// transfers control to function 100003f5e
+// (bit width of 8 bytes)
+// see disassembly of section __TEXT,__stubs:
+100003f3d: e8 1c 00 00 00              	callq	0x100003f5e <dyld_stub_binder+0x100003f5e>
+// so source address is return address + 75, 
+// destination address is %rdi which is the first argument (callee owned)
+// and the q means bit width of 8 bytes
+100003f42: 48 8d 3d 4b 00 00 00        	leaq	75(%rip), %rdi  # 100003f94 <dyld_stub_binder+0x100003f94>
+100003f49: be 08 00 00 00              	movl	$8, %esi
+100003f4e: b0 00                       	movb	$0, %al
+100003f50: e8 09 00 00 00              	callq	0x100003f5e <dyld_stub_binder+0x100003f5e>
+100003f55: 31 c0                       	xorl	%eax, %eax
+100003f57: 48 83 c4 10                 	addq	$16, %rsp
+100003f5b: 5d                          	popq	%rbp
+100003f5c: c3                          	retq
+
+Disassembly of section __TEXT,__stubs:
+
+0000000100003f5e <__stubs>:
+// unconditional jump with bitwidth 8
+// target is value at return address + 16540
+100003f5e: ff 25 9c 40 00 00           	jmpq	*16540(%rip)  # 100008000 <dyld_stub_binder+0x100008000>
+
+Disassembly of section __TEXT,__stub_helper:
+
+0000000100003f64 <__stub_helper>:
+100003f64: 4c 8d 1d 9d 40 00 00        	leaq	16541(%rip), %r11  # 100008008 <__dyld_private>
+100003f6b: 41 53                       	pushq	%r11
+100003f6d: ff 25 8d 00 00 00           	jmpq	*141(%rip)  # 100004000 <dyld_stub_binder+0x100004000>
+100003f73: 90                          	nop
+100003f74: 68 00 00 00 00              	pushq	$0
+100003f79: e9 e6 ff ff ff              	jmp	0x100003f64 <__stub_helper>
+
+

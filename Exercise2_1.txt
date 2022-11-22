@@ -1,0 +1,98 @@
+Adversarial CHERI Exercises and Missions 
+========================================
+
+I have written an explanation of activity on this, up to and including the morning of Tuesday 22 November. I hope this format and level of detail is helpful. If not, please advise.
+
+---------
+
+Exercise 2.1: "Compile and run RISC-V and CHERI-RISC-V programs"
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/compile-and-run/index.html
+
+This tutorial assumes a different setup than the one we have. Therefore, these exercises will have to be adapted where possible, skipped where impossible.
+
+--------
+
+IF TOO LONG DON'T WANNA READ 
+    GOTO RESUME 
+
+We have a riscv-purecap QEMU I can use, in addition to a morello-purecap QEMU I can use. Obviously, both are CHERI. So, why would I try to use the riscv-purecap QEMU to do this exercise?
+
+Because the only non-CHERI environments I can build in are on my local machine (Apple clang) and bencher14 (Debian), both of which are x86.
+
+Looking at the next exercise on disassembly, the assembly instructions shown https://ctsrd-cheri.github.io/cheri-exercises/exercises/debug-and-disassemble/answers.html are clearly RISCV. A look at the RISCV manual confirms this.
+
+I can change the target on the disassembler, but for the avoidance of doubt about what I am comparing, I want to make sure the binary I'm disassembling is compiled for a RISCV target. 
+
+The riscv-purecap QEMU is what I have, so I'm going to use that to build it even if CHERI, and see how it compares to the morello-purecap binary. THEN look at the x86.
+
+On Friday I tried building and running the riscv-purecap QEMU. This overwrote my morello-purecap QEMU, which I recovered with some tips from Jacob. 
+
+On Monday Andrei explained that environment wrangling is achieved by magic rather than deductive reasoning, and I have 
+- made a note of the magic words
+- got a riscv-purecap QEMU running. 
+- - My morello-purecap QEMU survived this, hooray 
+
+---------
+
+RESUME
+
+1. Compile print-pointer.c with a RISC-V target and a binary name of print-pointer-riscv.
+
+Renamed to print-pointer-riscv.c and compiled for riscv-purecap into print-pointer-riscv.
+
+2. Run the binary.
+
+Output is:
+
+size of pointer: 16
+size of address: 8
+
+It's CHERI and the pointer is bigger than the address, because capability.
+
+So, save the same file as cheri-apple.c and build with clang on my local x86 machine:
+
+size of pointer: 8
+size of address: 8
+
+Yep, no surprise there.
+
+3. Compile print-pointer.c with a CHERI-RISC-V target and a binary name of print-pointer-cheri.
+
+Renamed to print-pointer-cheri.c and compiled for morello-purecap into print-pointer-cheri.
+
+4. Run the binary: it should print a pointer size of 16 and address size of 8.
+
+size of pointer: 16
+size of address: 8
+
+Thumbs up.
+
+5. The second test program is written in CHERI C:
+
+Compile print-capability.c with a CHERI-RISC-V target and a binary name of print-capability.
+
+OK, compiled for morello-purecap. 
+
+Run the binary: note how the length of the capability depends on the size of the type it points to.
+
+cap to int length: 4 [this was an int]
+cap to cap length: 16 [this was a char *]
+
+That's the same as the output they expect for their environment. Is this perchance different for riscv-purecap? (I would be shocked if it were)
+
+Copy it to print-capability-riscv.c and build for riscv-purecap:
+
+cap to int length: 4
+cap to cap length: 16
+
+I'll compare the disassembled binaries, but after this won't pursue comparisons with riscv-purecap any more.
+
+=====
+
+
+
+
+
+
+
