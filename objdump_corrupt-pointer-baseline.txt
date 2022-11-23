@@ -1,0 +1,171 @@
+
+corrupt-pointer-baseline:	file format mach-o 64-bit x86-64
+
+
+Disassembly of section __TEXT,__text:
+
+0000000100003d80 <_main>:
+// push immediate value of %rbp onto stack
+// %rbp is a local variable, caller-owned
+// bitwidth is 8
+100003d80: 55                          	pushq	%rbp
+// copy value from caller-owned local variable to stack pointer
+// bitwidth is 8
+100003d81: 48 89 e5                    	movq	%rsp, %rbp
+// adjust stack pointer to set aside 576 more bytes
+// bitwidth is 8
+100003d84: 48 81 ec 40 02 00 00        	subq	$576, %rsp
+// write the return address + 622 to %rax (return value, callee-owned)
+// bitwidth is 8
+100003d8b: 48 8b 05 6e 02 00 00        	movq	622(%rip), %rax  # 100004000 <dyld_stub_binder+0x100004000>
+// write the value read from address %rax to %rax (?)
+// bitwidth is 8
+100003d92: 48 8b 00                    	movq	(%rax), %rax
+// write %rax to the address at %rbp-8 (local variable caller-owned minus 8)
+// bitwidth is 8
+100003d95: 48 89 45 f8                 	movq	%rax, -8(%rbp)
+// write 0 to the address at %rbp-532 (local variable caller-owned minus 532)
+// bitwidth is 4
+100003d99: c7 85 ec fd ff ff 00 00 00 00       	movl	$0, -532(%rbp)
+// write 0 to the address at %rbp-532 (local variable caller-owned minus 532)
+// bitwidth is 8
+100003da3: 48 c7 85 d8 fd ff ff 00 00 00 00    	movq	$0, -552(%rbp)
+// "execute a cmp or test operation to set the flags followed by a jump instruction 
+// variant that reads the flags to determine whether to take the branch or continue on.""
+// "# computes result = op1 - op2, discards result, sets condition codes"
+// so 511 (which is length of buf) - (value at local variable - 552) 
+// bitwidth is 8
+100003dae: 48 81 bd d8 fd ff ff ff 01 00 00    	cmpq	$511, -552(%rbp)
+// jump above 0x100003ded based on zero or equal condition
+100003db9: 0f 83 2e 00 00 00           	jae	0x100003ded <_main+0x6d>
+// write the value read from %rbp-532 (local variable) to %rax (return value)
+// bitwidth is 8
+100003dbf: 48 8b 85 d8 fd ff ff        	movq	-552(%rbp), %rax
+// write the low 8-bits to the low 8-bits of the 4th argument,
+// callee-owned? 
+// bit width is 1
+100003dc6: 88 c1                       	movb	%al, %cl
+// write the value read from %rbp-552 (local variable) to %rax (return value) 
+// bit width is 8
+100003dc8: 48 8b 85 d8 fd ff ff        	movq	-552(%rbp), %rax
+// write the low 8-bits of the 4th argument to... I don't really
+// understand this but it's 528 below a special-case scaled index? 
+// bit width is 1
+100003dcf: 88 8c 05 f0 fd ff ff        	movb	%cl, -528(%rbp,%rax)
+// write the value found at the local variable -552 to the return value
+// bit width is 8
+100003dd6: 48 8b 85 d8 fd ff ff        	movq	-552(%rbp), %rax
+// increment the return value (this has to be the for loop)
+// bit width is 8
+100003ddd: 48 83 c0 01                 	addq	$1, %rax
+// write the return value to the local variable -552
+100003de1: 48 89 85 d8 fd ff ff        	movq	%rax, -552(%rbp)
+// unconditional jump to 0x100003dae
+100003de8: e9 c1 ff ff ff              	jmp	0x100003dae <_main+0x2e>
+// so source address is local variable -528
+// destination address is $rsi which is 2nd argument, caller-owned 
+// bitwidth is 8
+100003ded: 48 8d b5 f0 fd ff ff        	leaq	-528(%rbp), %rsi
+// write the 2nd argument to the return value
+// bitwidth is 8
+100003df4: 48 89 f0                    	movq	%rsi, %rax
+// add 271 to the return value
+// bitwidth is 8
+100003df7: 48 05 0f 01 00 00           	addq	$271, %rax
+// write the return value to the local variable - 544
+// bitwidth is 8
+100003dfd: 48 89 85 e0 fd ff ff        	movq	%rax, -544(%rbp)
+// so source address is return address + 317
+// destination address is $rdi which is 1st argument, caller-owned 
+// bitwidth is 8
+100003e04: 48 8d 3d 3d 01 00 00        	leaq	317(%rip), %rdi  # 100003f48 <dyld_stub_binder+0x100003f48>
+// so source address is return address - 544
+// destination address is $rdx which is 1st argument, caller-owned 
+// bitwidth is 8
+100003e0b: 48 8d 95 e0 fd ff ff        	leaq	-544(%rbp), %rdx
+// write 0 to the low 8-bits of the return value
+// bitwidth is 1
+100003e12: b0 00                       	movb	$0, %al
+// transfers control to function 100003f1e
+// (bit width of 8 bytes)
+// see disassembly of section __TEXT,__stubs (it's the second one)
+100003e14: e8 05 01 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+// so source address is return address - 528
+// destination address is the local variable
+// bitwidth is 8
+100003e19: 48 8d 85 f0 fd ff ff        	leaq	-528(%rbp), %rax
+// write the value at the local variable -544 to the 2nd argument,caller-owned
+// bitwidth is 8
+100003e20: 48 8b b5 e0 fd ff ff        	movq	-544(%rbp), %rsi
+// write the value at the local variable -544 to the 1st argument,caller-owned
+// bitwidth is 8
+100003e27: 48 8b 95 e0 fd ff ff        	movq	-544(%rbp), %rdx
+// subtract the local variable from the 1st argument
+// bitwidth is 8
+100003e2e: 48 29 c2                    	subq	%rax, %rdx
+// write the value at return address -544 to the local variable
+// bitwidth is 8
+100003e31: 48 8b 85 e0 fd ff ff        	movq	-544(%rbp), %rax
+100003e38: 0f be 08                    	movsbl	(%rax), %ecx
+100003e3b: 48 8d 3d 14 01 00 00        	leaq	276(%rip), %rdi  # 100003f56 <dyld_stub_binder+0x100003f56>
+100003e42: b0 00                       	movb	$0, %al
+100003e44: e8 d5 00 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+100003e49: 48 8d 85 f0 fd ff ff        	leaq	-528(%rbp), %rax
+100003e50: 48 8b 8d e0 fd ff ff        	movq	-544(%rbp), %rcx
+100003e57: 48 81 e1 00 ff ff ff        	andq	$-256, %rcx
+100003e5e: 48 89 8d d0 fd ff ff        	movq	%rcx, -560(%rbp)
+100003e65: 48 8b b5 d0 fd ff ff        	movq	-560(%rbp), %rsi
+100003e6c: 48 8b 95 d0 fd ff ff        	movq	-560(%rbp), %rdx
+100003e73: 48 29 c2                    	subq	%rax, %rdx
+100003e76: 48 8d 3d 00 01 00 00        	leaq	256(%rip), %rdi  # 100003f7d <dyld_stub_binder+0x100003f7d>
+100003e7d: b0 00                       	movb	$0, %al
+100003e7f: e8 9a 00 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+100003e84: 48 8b 85 d0 fd ff ff        	movq	-560(%rbp), %rax
+100003e8b: 0f be 30                    	movsbl	(%rax), %esi
+100003e8e: 48 8d 3d ff 00 00 00        	leaq	255(%rip), %rdi  # 100003f94 <dyld_stub_binder+0x100003f94>
+100003e95: b0 00                       	movb	$0, %al
+100003e97: e8 82 00 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+100003e9c: 48 8d 85 f0 fd ff ff        	leaq	-528(%rbp), %rax
+100003ea3: c6 85 e0 fd ff ff 00        	movb	$0, -544(%rbp)
+100003eaa: 48 8b 8d e0 fd ff ff        	movq	-544(%rbp), %rcx
+100003eb1: 48 89 8d c8 fd ff ff        	movq	%rcx, -568(%rbp)
+100003eb8: 48 8b b5 c8 fd ff ff        	movq	-568(%rbp), %rsi
+100003ebf: 48 8b 95 c8 fd ff ff        	movq	-568(%rbp), %rdx
+100003ec6: 48 29 c2                    	subq	%rax, %rdx
+100003ec9: 48 8d 3d cd 00 00 00        	leaq	205(%rip), %rdi  # 100003f9d <dyld_stub_binder+0x100003f9d>
+100003ed0: b0 00                       	movb	$0, %al
+100003ed2: e8 47 00 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+100003ed7: 48 8b 85 c8 fd ff ff        	movq	-568(%rbp), %rax
+100003ede: 0f be 30                    	movsbl	(%rax), %esi
+100003ee1: 48 8d 3d c3 00 00 00        	leaq	195(%rip), %rdi  # 100003fab <dyld_stub_binder+0x100003fab>
+100003ee8: b0 00                       	movb	$0, %al
+100003eea: e8 2f 00 00 00              	callq	0x100003f1e <dyld_stub_binder+0x100003f1e>
+100003eef: 48 8b 05 0a 01 00 00        	movq	266(%rip), %rax  # 100004000 <dyld_stub_binder+0x100004000>
+100003ef6: 48 8b 00                    	movq	(%rax), %rax
+100003ef9: 48 8b 4d f8                 	movq	-8(%rbp), %rcx
+100003efd: 48 39 c8                    	cmpq	%rcx, %rax
+100003f00: 0f 85 0b 00 00 00           	jne	0x100003f11 <_main+0x191>
+100003f06: 31 c0                       	xorl	%eax, %eax
+100003f08: 48 81 c4 40 02 00 00        	addq	$576, %rsp
+100003f0f: 5d                          	popq	%rbp
+100003f10: c3                          	retq
+100003f11: e8 02 00 00 00              	callq	0x100003f18 <dyld_stub_binder+0x100003f18>
+100003f16: 0f 0b                       	ud2
+
+Disassembly of section __TEXT,__stubs:
+
+0000000100003f18 <__stubs>:
+100003f18: ff 25 e2 40 00 00           	jmpq	*16610(%rip)  # 100008000 <dyld_stub_binder+0x100008000>
+100003f1e: ff 25 e4 40 00 00           	jmpq	*16612(%rip)  # 100008008 <dyld_stub_binder+0x100008008>
+
+Disassembly of section __TEXT,__stub_helper:
+
+0000000100003f24 <__stub_helper>:
+100003f24: 4c 8d 1d e5 40 00 00        	leaq	16613(%rip), %r11  # 100008010 <__dyld_private>
+100003f2b: 41 53                       	pushq	%r11
+100003f2d: ff 25 d5 00 00 00           	jmpq	*213(%rip)  # 100004008 <dyld_stub_binder+0x100004008>
+100003f33: 90                          	nop
+100003f34: 68 00 00 00 00              	pushq	$0
+100003f39: e9 e6 ff ff ff              	jmp	0x100003f24 <__stub_helper>
+100003f3e: 68 18 00 00 00              	pushq	$24
+100003f43: e9 dc ff ff ff              	jmp	0x100003f24 <__stub_helper>

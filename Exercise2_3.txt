@@ -1,0 +1,214 @@
+Adversarial CHERI Exercises and Missions
+========================================
+
+Exercise 2.3: Demonstrate CHERI Tag Protection
+
+1. Compile corrupt-pointer.c for the baseline architecture to the binary corrupt-pointer-baseline and for the CHERI-aware architecture to corrupt-pointer-cheri.
+
+===
+
+2. Run both programs and observe the output.
+
+./corrupt-pointer-baseline
+buf=0x7ffeeebeb4b0 &p=0x7ffeeebeb4a0
+p.ptr=0x7ffeeebeb5bf (0x10f into buf) *p.ptr=0f
+q=0x7ffeeebeb500 (0x50 into buf)
+*q=50
+r=0x7ffeeebeb500 (0x50)
+*r=50
+---
+
+As root directly on QEMU morello:
+ ./corrupt-pointer-cheri
+buf=0xfffffff7fd6c [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] &p=0xfffffff7fd50 [rwRW,0xfffffff7fd50-0xfffffff7fd60]
+p.ptr=0xfffffff7fe7b [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (0x10f into buf) *p.ptr=0f
+q=0xfffffff7fe00 [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (0x94 into buf)
+*q=94
+r=0xfffffff7fe00 [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (invalid) (0x94)
+In-address space security exception (core dumped)
+---
+Is that ^ the polite way of saying SIGPROT? 
+
+---
+I have gone through the code and the output and annotated corrupt-pointer-baseline.c
+(the code is identical in both files) with comments for my own understanding of what's happening here.
+
+I am not asking you to read them, but they're there if you're interested enough
+
+====
+
+3. Use gdb to inspect the SIGPROT thrown to the CHERI program.
+
+---
+
+gdb corrupt-pointer-cheri
+
+Reading symbols from corrupt-pointer-cheri...
+(gdb) r
+Starting program: /root/corrupt-pointer-cheri 
+buf=0xfffffff7fd6c [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] &p=0xfffffff7fd50 [rwRW,0xfffffff7fd50-0xfffffff7fd60]
+p.ptr=0xfffffff7fe7b [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (0x10f into buf) *p.ptr=0f
+q=0xfffffff7fe00 [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (0x94 into buf)
+*q=94
+r=0xfffffff7fe00 [rwRW,0xfffffff7fd6c-0xfffffff7ff6b] (invalid) (0x94)
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability tag fault.
+0x0000000000110cf0 in main ()
+
+---
+
+Ooh, a capability tag fault. Nice
+
+---
+
+Q. Print out the pseudoregister $_siginfo. 
+
+---
+
+p $_siginfo [hat tip to Gabi, I was using the wrong command]
+$1 = {si_signo = 34, si_errno = 0, si_code = 2, si_pid = 0, si_uid = 0, 
+  si_status = 0, si_addr = 0x110cf0 <main+512>, si_value = {sival_int = 0, 
+    sival_ptr = 0x0}, _reason = {_fault = {si_trapno = 36, si_capreg = 0}, 
+    _timer = {si_timerid = 36, si_overrun = 0}, _mesgq = {si_mqd = 36}, 
+    _poll = {si_band = 36}, __spare__ = {__spare1__ = 36, __spare2__ = {0, 0, 
+        0, 0, 0, 0, 0}}}}
+        
+---
+
+Q: si_signo 34 is SIGPROT, a new signal introduced for conveying CHERI traps to user programs. The si_code values for SIGPROT signals are defined as the various PROT_CHERI_* values in <sys/signal.h> (which can be found in /usr/include in a CheriBSD system).
+
+----
+
+So I think the file is located here
+https://github.com/capablevms/cheribsd/blob/master/sys/sys/signal.h
+
+and it has
+
+/* codes for SIGPROT - XXXRW: under incorrect ifdef */
+#define	PROT_CHERI_BOUNDS	1	/* Capability bounds fault	*/
+#define	PROT_CHERI_TAG		2	/* Capability tag fault		*/
+#define	PROT_CHERI_SEALED	3	/* Capability sealed fault	*/
+#define	PROT_CHERI_TYPE		4	/* Type mismatch fault		*/
+#define	PROT_CHERI_PERM		5	/* Capability permission fault	*/
+#define	PROT_CHERI_IMPRECISE	7	/* Imprecise bounds fault	*/
+#define	PROT_CHERI_STORELOCAL	8	/* Store-local fault		*/
+#define	PROT_CHERI_CCALL	9	/* CCall fault			*/
+#define	PROT_CHERI_CRETURN	10	/* CReturn fault		*/
+#define	PROT_CHERI_SYSREG	11	/* Capability system register fault */
+#endif
+
+---
+
+Their answers also suggest 
+
+x/i $pcc
+
+but I get:
+No registers
+
+=====
+
+4. Examine the disassembly of the construction of q,
+
+uint8_t *q = (uint8_t*)(((uintptr_t)p.ptr) & ~0xFF) + 5;
+
+and the byte-wise mutation of p.ptr to construct r,
+
+p.bytes[0] = 5;
+uint8_t *r = p.ptr;
+
+in both baseline and CHERI-enabled programs.
+
+What stands out?
+
+---
+
+Well firstly the source code actually looks like this, if it matters:
+
+p.bytes[0] = 0;
+char *r = p.ptr;
+
+but anyway...
+
+---
+
+Baseline (is in objdump_corrupt-pointer-baseline.txt with annotations of mine, 
+I am not asking you to read it)
+
+objdump -dS corrupt-pointer-baseline > objdump_corrupt-pointer-baseline.txt
+
+---
+
+So I think the construction of q in the baseline code is:
+
+100003e50: 48 8b 8d e0 fd ff ff        	movq	-544(%rbp), %rcx
+(do a bitwise and of -256 and %rcx (p.ptr or the relevant index of the buffer))
+100003e57: 48 81 e1 00 ff ff ff        	andq	$-256, %rcx
+
+---
+
+CHERI:
+
+~/cheri/output/morello-sdk/bin/llvm-objdump -dS -s --triple=aarch64 corrupt-pointer-cheri
+
+(is in objdump_corrupt-pointer-cheri.txt with annotations of mine,
+I am not asking you to read it)
+
+---
+
+They are looking for clc, cgetaddr, csetaddr, which aren't in my output.
+
+I think? these are the relevant bits from the main section, I may have
+overincluded some lines (annotations mine, from the ARM docs):
+
+   10c28: 21 00 40 c2  	ldr	c1, [c1, #0]
+   10c2c: 28 50 c0 c2  	gcvalue	x8, c1
+   10c30: e2 03 1f aa  	mov	x2, xzr
+   10c34: 42 00 84 02  	sub	c2, c2, #256            // =256
+   10c38: 4a 50 c0 c2  	gcvalue	x10, c2
+   10c3c: 08 01 0a 8a  	and	x8, x8, x10
+// Set value field of a capability writes the source Capability register to 
+// the destination Capability register with the Value field set to a value based 
+// on a 64-bit general-purpose register. If the source capability is sealed, 
+// the Capability Tag written to the destination Capability register is cleared.
+   10c40: 21 40 c8 c2  	scvalue	c1, c1, x8
+// STR (register)
+// Store Register (register) calculates an address from a base register value and 
+// an offset register value, and stores a 32-bit word or a 64-bit doubleword 
+// to the calculated address, from a register. 
+// For information about memory accesses, see Load/Store addressing modes.
+   10c44: 01 00 00 c2  	str	c1, [c0, #0]
+// Load Register (register) calculates an address from a base register value 
+// and an offset register value, loads a word from memory, and writes it to a 
+// register. The offset register value can optionally be shifted and extended. 
+// For information about memory accesses, see Load/Store addressing modes
+   10c48: 01 00 40 c2  	ldr	c1, [c0, #0]
+   
+====
+
+5. Given that q and r appear to have identical byte representation in memory, why does the CHERI version crash when dereferencing q?
+
+I am not exactly sure how the instructions I have map to the answer given:
+
+"While the in-memory, byte representation of q and r are identical, q has been manipulated as bytes rather than as a capability and so has had its tag zeroed."
+
+[ISTM this is the important point, regardless of precise implementation]
+
+"(Specifically, the csb zero, 32(csp) instruction cleared the tag associated with the 16-byte granule pointed to by 32(csp); the subsequent clc transferred this zero tag to cs1.)"
+
+I'm not sure which of the instructions above would have cleared the tag.
+
+Is it the sub?
+
+10c50: 08 01 09 cb  	sub	x8, x8, x9
+
+because according to the documentation about SUB: "If the result is not representable the destination Capability register tag is cleared."
+
+===============
+
+
+
+
+
+
