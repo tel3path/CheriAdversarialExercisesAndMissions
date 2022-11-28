@@ -1,0 +1,450 @@
+Adversarial CHERI Exercises and Missions
+========================================
+
+EXERCISE 2.4: EXERCISE AN INTER-STACK-OBJECT BUFFER OVERFLOW
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/buffer-overflow-stack/index.html
+
+================================
+
+Q: This exercise demonstrates an inter-object buffer overflow on baseline and CHERI-enabled architectures, and asks you to characterize and fix the bug detected by CHERI bounds enforcement. It also asks you to use GDB for debugging purposes.
+
+By contrast to the globals-based example [exercise 2.5], this example uses two stack objects to demonstrate the overflow. We will be able to see the CHERI C compiler generate code to apply spatial bounds on the capability used for the buffer pointer we pass around.
+
+1. Compile buffer-overflow-stack.c for the baseline architecture to the binary buffer-overflow-stack-baseline 
+
+-----
+
+A: Doesn't work on my local machine at all:
+
+clang -o buffer-overflow-stack-baseline buffer-overflow-stack-baseline.c
+buffer-overflow-stack-baseline.c:35:13: error: use of undeclared identifier 'ptraddr_t'
+    assert((ptraddr_t)upper == (ptraddr_t)&lower[sizeof(lower)]);
+            ^
+1 error generated.
+
+---
+
+A: Try on bencher14:
+
+lang -o buffer-overflow-stack-baseline buffer-overflow-stack-baseline.c
+buffer-overflow-stack-baseline.c:26:13: error: use of undeclared identifier 'ptraddr_t'
+    assert((ptraddr_t)upper == (ptraddr_t)&lower[sizeof(lower)]);
+            ^
+buffer-overflow-stack-baseline.c:26:13: error: use of undeclared identifier 'ptraddr_t'
+2 errors generated.
+
+--
+
+Outside of CHERI there's no such thing as a ptraddr_t so not sure why they put it this way.
+
+(Or is there such a thing at all? Even inside of CHERI? Google only returns results having to do with CHERI, which don't rise to the level of actual documentation. Whereas a search of the haystack of CHERI documentation I have, turns up no such needle. Is this why CHERI is secure? Because they're so endlessly coy about documenting any of it, like maps of Moscow during the Cold War? FFS.)
+
+--
+
+I found this: https://cheri-compiler-explorer.cl.cam.ac.uk/
+
+And I try the option of RISCV64 (without CHERI) it emulates -g0 -O2 -emit-llvm
+And I get:
+Compiler returned: 0
+
+but
+but
+but
+
+--
+
+Oh sod this. Change baseline from ptraddr_t to size_t:
+
+chericode % gcc -o buffer-overflow-stack-baseline buffer-overflow-stack-baseline.c
+helenoliver@Helens-MacBook-Air-3 chericode % ./buffer-overflow-stack-baseline
+upper = 0x7ffee2338690, lower = 0x7ffee2338680, diff = 10
+upper[0] = a
+upper[0] = b
+
+OK cool? That's what we were expecting?
+
+==============
+
+and for the CHERI-aware architecture to buffer-overflow-stack-cheri.
+
+---
+
+Compile with make -f Makefile.morello-purecap buffer-overflow-stack-cheri
+
+--
+
+Run natively on bencher14:
+
+ssh -p 10090 root@localhost -t ./buffer-overflow-stack-cheri
+upper = 0xfffffff7ff6c, lower = 0xfffffff7ff5c, diff = 10
+upper[0] = a
+Connection to localhost closed.
+
+So upper is 281474976186220
+Lower is 281474976186204
+
+--
+
+run on QEMU morello:
+
+./buffer-overflow-stack-cheri
+upper = 0xfffffff7ff6c, lower = 0xfffffff7ff5c, diff = 10
+upper[0] = a
+In-address space security exception (core dumped)
+
+========
+
+3. Using GDB on the core dump (or run the CHERI program under gdb): Why has the CHERI program failed?
+
+Starting program: /root/buffer-overflow-stack-cheri 
+upper = 0xfffffff7ff6c, lower = 0xfffffff7ff5c, diff = 10
+upper[0] = a
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability bounds fault.
+0x0000000000110b90 in write_buf ()
+
+Hmmm need more debugging info.
+
+Tried rebuilding it with flag -d but it didn't actually build it.
+
+And it wants me to look up the registers shown here, but there aren't any registers in this output.
+
+So we have upper at 0xfffffff7ff6c
+
+Now go info registers
+
+(gdb) info registers
+x0             0xfffffff7ff5c      281474976186204
+x1             0xfffffff7feb8      281474976186040
+x2             0xfffffff7ff5c      281474976186204
+x3             0x402b191d          1076566301
+x4             0xfffffff7fa10      281474976184848
+x5             0xfffffff7fa90      281474976184976
+x6             0xfffffff7fb30      281474976185136
+x7             0xfffffff7fc70      281474976185456
+x8             0x62                98
+x9             0x10                16
+x10            0x1                 1
+x11            0x2                 2
+x12            0x100010001000700   72058693566334720
+x13            0x293629563950776e  2969606454602921838
+x14            0x10                16
+x15            0x7b763267          2071343719
+x16            0x4039ebe0          1077537760
+x17            0x402c92e5          1076663013
+x18            0x403a2950          1077553488
+x19            0x4014d369          1075106665
+x20            0xffffbff7f880      281473902442624
+x21            0xffffbff7f860      281473902442592
+x22            0x1                 1
+--Type <RET> for more, q to quit, c to continue without paging--
+x23            0x0                 0
+x24            0x0                 0
+x25            0x0                 0
+x26            0x0                 0
+x27            0x0                 0
+x28            0x0                 0
+x29            0xfffffff7ff80      281474976186240
+x30            0x110c99            1117337
+sp             0xfffffff7feb0      281474976186032
+pc             0x110b90            1117072
+cpsr           0x64000200          [ EL=0 D BTYPE=0 C64 C Z ]
+fpsr           0x0                 [ ]
+fpcr           0x0                 [ RMode=0 ]
+c0             0xdc5d40007f6cff5c0000fffffff7ff5c 0xfffffff7ff5c [rwRW,0xfffffff7ff5c-0xfffffff7ff6c]
+c1             0xdc5d40007ec0feb80000fffffff7feb8 0xfffffff7feb8 [rwRW,0xfffffff7feb8-0xfffffff7fec0]
+c2             0xdc5d40007f6cff5c0000fffffff7ff5c 0xfffffff7ff5c [rwRW,0xfffffff7ff5c-0xfffffff7ff6c]
+c3             0xb05fc000bdc6190700000000402b191d 0x402b191d <__swrite> [rxRE,0x40190000-0x407dc000] (sentry)
+c4             0xdc5d40003ffdbfff0000fffffff7fa10 0xfffffff7fa10 [rwRW,0xffffbff80000-0xfffffff80000]
+--Type <RET> for more, q to quit, c to continue without paging--
+c5             0xdc5d40003ffdbfff0000fffffff7fa90 0xfffffff7fa90 [rwRW,0xffffbff80000-0xfffffff80000]
+c6             0xdc5d40003ffdbfff0000fffffff7fb30 0xfffffff7fb30 [rwRW,0xffffbff80000-0xfffffff80000]
+c7             0xdc5d40003ffdbfff0000fffffff7fc70 0xfffffff7fc70 [rwRW,0xffffbff80000-0xfffffff80000]
+c8             0x62                0x62
+c9             0x10                0x10
+c10            0x1                 0x1
+c11            0x2                 0x2
+c12            0x100010001000700   0x100010001000700
+c13            0x293629563950776e  0x293629563950776e
+c14            0x10                0x10
+c15            0x7b763267          0x7b763267
+c16            0xb05fc0003dc61907000000004039ebe0 0x4039ebe0 <_write@got.plt> [rxRE,0x40190000-0x407dc000]
+c17            0xb05fc000bdc6190700000000402c92e5 0x402c92e5 <_write> [rxRE,0x40190000-0x407dc000] (sentry)
+c18            0xdc5fc0006960295000000000403a2950 0x403a2950 [rwRWE,0x403a2950-0x403a2960]
+c19            0xb05dc000844f3003000000004014d369 0x4014d369 <rtld_nop_exit> [rxRE,0x40130000-0x40184480] (sentry)
+c20            0xdc5d40007980f8800000ffffbff7f880 0xffffbff7f880 [rwRW,0xffffbff--Type <RET> for more, q to quit, c to continue without paging--
+7f880-0xffffbff7f980]
+c21            0xdc5d40007880f8600000ffffbff7f860 0xffffbff7f860 [rwRW,0xffffbff7f860-0xffffbff7f880]
+c22            0x1                 0x1
+c23            0x0                 0x0
+c24            0x0                 0x0
+c25            0x0                 0x0
+c26            0x0                 0x0
+c27            0x0                 0x0
+c28            0x0                 0x0
+c29            0xdc5d40003ffdbfff0000fffffff7ff80 0xfffffff7ff80 [rwRW,0xffffbff80000-0xfffffff80000]
+c30            0xb05dc000a21f00040000000000110c99 0x110c99 <main+248> [rxRE,0x100000-0x1310c0] (sentry)
+csp            0xdc5d40003ffdbfff0000fffffff7feb0 0xfffffff7feb0 [rwRW,0xffffbff80000-0xfffffff80000]
+pcc            0xb05dc000221f00040000000000110b90 0x110b90 <write_buf+48> [rxRE,0x100000-0x1310c0]
+ddc            0x0                 0x0
+ctpidr         0xdc5d400014efc01700000000407fc020 0x407fc020 [rwRW,0x407fc010-0x408014e8]
+rcsp           0x0                 0x0
+rddc           0x0                 0x0
+--Type <RET> for more, q to quit, c to continue without paging--
+rctpidr        0x0                 0x0
+cid            0x0                 0x0
+cctlr          <unavailable>
+
+So they looked up the address of upper.
+Ours is: upper = 0xfffffff7ff6c
+
+And that matches:
+
+c0             0xdc5d40007f6cff5c0000fffffff7ff5c 0xfffffff7ff5c [rwRW,0xfffffff7ff5c-0xfffffff7ff6c]
+
+c2             0xdc5d40007f6cff5c0000fffffff7ff5c 0xfffffff7ff5c [rwRW,0xfffffff7ff5c-0xfffffff7ff6c]
+
+So upper starts at the end of c0 AND the end of c2, which weren't overlapping in exercise 2.2.
+
+Ours also is:
+
+Capability bounds fault.
+0x0000000000110b90 in write_buf ()
+1117072
+
+from 281474976186204 to 281474976186220
+
+281,474,976,186,220
+9,223,372,036,854,775,807
+It's not an int overflow, then, because that's well within the bounds of a 64-bit int
+
+up
+#1  0x0000000000110c98 in main ()
+
+?????
+
+(gdb) disass
+Dump of assembler code for function main:
+   // subtract 208 from the cap stack pointer
+   0x0000000000110ba0 <+0>:       sub     csp, csp, #0xd0
+   // Store Pair of Registers calculates an address from a base register value and an                                immediate offset, and stores two 32-bit words or two 64-bit doublewords to the calculated address, from two registers. For information about memory accesses, see Load/Store addressing modes.
+   // so it transfers c29 and c30 into the capability stack pointer plus 176.
+   // What are they?
+   // c29            0xdc5d40003ffdbfff0000fffffff7ff40 0xfffffff7ff40    [rwRW,0xffffbff80000-0xfffffff80000]
+c30            0xb05dc000a1d700040000000000110a91 0x110a91 <main+64> [rxRE,0x100000-0x130e80] (sentry) 
+
+   0x0000000000110ba4 <+4>:       stp     c29, c30, [csp, #176]
+   
+   // Add (extended register) adds a Capability register value field and a sign or zero-extended register value, followed by an optional left shift amount, and writes the result to the destination Capability register value field. The argument that is extended from the <Rm> register can be a byte, halfword, word, or doubleword. If the result is not representable the destination Capability register tag is cleared. If the source capability is sealed, the Capability Tag written to the destination Capability register is cleared.
+   
+   // so to c29, it adds the value in csp (which is c29 and c30), plus a left shift by 176
+   0x0000000000110ba8 <+8>:       add     c29, csp, #0xb0
+   // dest, source, shift left: so put c29 into c0 and shift left by 4
+   0x0000000000110bac <+12>:      sub     c0, c29, #0x4
+   
+   // Set Bounds (immediate) derives Capability Bounds using the source Capability register and a length from an immediate offset and writes the result to the destination Capability register. If the source capability is sealed, the Capability Tag written to the destination Capability register is cleared
+   // so source is c0, destination is c0, and the length is... 4???
+   0x0000000000110bb0 <+16>:      scbnds  c0, c0, #0x4
+   // subtract c1 from c29 minus 20
+   0x0000000000110bb4 <+20>:      sub     c1, c29, #0x14
+   // source is c1, destination is c1, length is 16
+   0x0000000000110bb8 <+24>:      scbnds  c1, c1, #0x10
+   // c29 minus 80 gets c1 transferred into it
+   0x0000000000110bbc <+28>:      stur    c1, [c29, #-80]
+   // move c1 into c2
+   0x0000000000110bc0 <+32>:      mov     c2, c1
+   // move c2 into the capability stack pointer plus 64
+   0x0000000000110bc4 <+36>:      str     c2, [csp, #64]
+   // subtract c2 from c29 minus 36
+   0x0000000000110bc8 <+40>:      sub     c2, c29, #0x24
+   // source is c2, destination is c2, length is 16
+   0x0000000000110bcc <+44>:      scbnds  c2, c2, #0x10
+   // c29 minus 64 gets c2 transferred into it
+   0x0000000000110bd0 <+48>:      stur    c2, [c29, #-64]
+   // move c2 into c3
+   0x0000000000110bd4 <+52>:      mov     c3, c2
+   // move c3 into the capability stack pointer plus 80
+   0x0000000000110bd8 <+56>:      str     c3, [csp, #80]
+   // move 32-bit general purpose register into... 32-bit version of c8?
+   // (which was 0x10)
+   0x0000000000110bdc <+60>:      mov     w8, wzr
+   // move w8 into c0
+   0x0000000000110be0 <+64>:      str     w8, [c0]
+   // move x2 (0xffffbff7f8a0) into x9 (fffffff7ff60)
+   0x0000000000110be4 <+68>:      mov     x9, x2
+   // move x1 (ffffbff7f880) into x8 (0x10)
+   0x0000000000110be8 <+72>:      mov     x8, x1
+   // subtract x9 (fffffff7ff60) from x8 (0x10)
+   0x0000000000110bec <+76>:      sub     x8, x8, x9
+   // move capability stack pointer into c0
+   0x0000000000110bf0 <+80>:      mov     c0, csp
+   // move x8 into c0 + 32
+   0x0000000000110bf4 <+84>:      str     x8, [c0, #32]
+--Type <RET> for more, q to quit, c to continue without paging--
+   // move c2 into c0 + 16
+   0x0000000000110bf8 <+88>:      str     c2, [c0, #16]
+   // move c1 into c0
+   0x0000000000110bfc <+92>:      str     c1, [c0]
+   // source is c0, destination is c0, length is 48
+   0x0000000000110c00 <+96>:      scbnds  c0, c0, #0x30
+   // Clear capability Permissions (scalar) clears the Capability Permissions of the source capability using a mask and writes the result to the destination Capability register.
+   // use wx (32bit?) to clear c0 and write it to c9
+   0x0000000000110c04 <+100>:     clrperm c9, c0, wx
+   // Form PCC-relative address to 4KB page adds an immediate value that is shifted left by 12 bits to the PCC value with the bottom 12 bits masked out to form a PCC-relative address and writes the result to the destination register. This description only applies in A64.
+   // so address is 12 to the left of program label 0x120000
+   // and that address gets written to c0?
+   0x0000000000110c08 <+104>:     adrp    c0, 0x120000
+   0x0000000000110c0c <+108>:     ldr     c0, [c0, #3408]
+   0x0000000000110c10 <+112>:     bl      0x110d20 <printf@plt>
+   0x0000000000110c14 <+116>:     ldur    c1, [c29, #-80]
+   0x0000000000110c18 <+120>:     ldur    c0, [c29, #-64]
+   0x0000000000110c1c <+124>:     gcvalue x8, c1
+   0x0000000000110c20 <+128>:     add     c0, c0, #0x10
+   0x0000000000110c24 <+132>:     gcvalue x9, c0
+   0x0000000000110c28 <+136>:     subs    x8, x8, x9
+   0x0000000000110c2c <+140>:     b.ne    0x110c38 <main+152>  // b.any
+   0x0000000000110c30 <+144>:     b       0x110c34 <main+148>
+   0x0000000000110c34 <+148>:     b       0x110c58 <main+184>
+   0x0000000000110c38 <+152>:     adrp    c0, 0x120000
+   0x0000000000110c3c <+156>:     ldr     c0, [c0, #3424]
+   0x0000000000110c40 <+160>:     adrp    c1, 0x120000
+   0x0000000000110c44 <+164>:     ldr     c1, [c1, #3440]
+   0x0000000000110c48 <+168>:     adrp    c3, 0x120000
+   0x0000000000110c4c <+172>:     ldr     c3, [c3, #3456]
+   0x0000000000110c50 <+176>:     mov     w2, #0x1a                       // #26
+--Type <RET> for more, q to quit, c to continue without paging--
+   0x0000000000110c54 <+180>:     bl      0x110d30 <__assert@plt>
+   0x0000000000110c58 <+184>:     ldr     c0, [csp, #64]
+   0x0000000000110c5c <+188>:     mov     w8, #0x61                       // #97
+   0x0000000000110c60 <+192>:     strb    w8, [c0]
+   0x0000000000110c64 <+196>:     ldrb    w8, [c0]
+   0x0000000000110c68 <+200>:     mov     c0, csp
+   0x0000000000110c6c <+204>:     str     x8, [c0]
+   0x0000000000110c70 <+208>:     scbnds  c0, c0, #0x10
+   0x0000000000110c74 <+212>:     clrperm c9, c0, wx
+   0x0000000000110c78 <+216>:     adrp    c0, 0x120000
+   0x0000000000110c7c <+220>:     ldr     c0, [c0, #3472]
+   0x0000000000110c80 <+224>:     str     c0, [csp, #48]
+   0x0000000000110c84 <+228>:     bl      0x110d20 <printf@plt>
+   0x0000000000110c88 <+232>:     ldr     c0, [csp, #80]
+   0x0000000000110c8c <+236>:     mov     w8, #0x10                       // #16
+   0x0000000000110c90 <+240>:     mov     w1, w8
+   0x0000000000110c94 <+244>:     bl      0x110b60 <write_buf>
+=> 0x0000000000110c98 <+248>:     ldr     c1, [csp, #64]
+   0x0000000000110c9c <+252>:     ldr     c0, [csp, #48]
+   0x0000000000110ca0 <+256>:     ldrb    w8, [c1]
+   0x0000000000110ca4 <+260>:     mov     c1, csp
+   0x0000000000110ca8 <+264>:     str     x8, [c1]
+   0x0000000000110cac <+268>:     scbnds  c1, c1, #0x10
+--Type <RET> for more, q to quit, c to continue without paging--
+   0x0000000000110cb0 <+272>:     clrperm c9, c1, wx
+   0x0000000000110cb4 <+276>:     bl      0x110d20 <printf@plt>
+   0x0000000000110cb8 <+280>:     mov     w0, wzr
+   0x0000000000110cbc <+284>:     ldp     c29, c30, [csp, #176]
+   0x0000000000110cc0 <+288>:     add     csp, csp, #0xd0
+   0x0000000000110cc4 <+292>:     ret     c30
+End of assembler dump.
+
+---
+
+The screwup occurred right here, officer:
+
+=> 0x0000000000110c98 <+248>:     ldr     c1, [csp, #64]
+
+What led up to that?
+
+   // load csp + 80 into c0
+   0x0000000000110c88 <+232>:     ldr     c0, [csp, #80]
+   // move 16 into (32-bit) w8
+   0x0000000000110c8c <+236>:     mov     w8, #0x10                       // #16
+   // move w8 (16) into w1 (so both are 32-bit and are now 16)
+   // (gdb) p w8
+   // No symbol "w8" in current context.
+   // (gdb) info reg w8
+   // w8             0x62                98
+   // (gdb) info reg w1
+   // w1             0xfffffff7feb8      281474976186040
+   0x0000000000110c90 <+240>:     mov     w1, w8
+   // so... we have w1 (32-bit c1)=16 and sizeof(w1)=16 and that gets branched to   write_buf?
+   0x0000000000110c94 <+244>:     bl      0x110b60 <write_buf>
+   // load csp + 64 into c1 (16 to the left of c0)
+=> 0x0000000000110c98 <+248>:     ldr     c1, [csp, #64]
+   // load csp + 48 into c0 (16 to the left of c1... if it weren't for those pesky kids)
+   0x0000000000110c9c <+252>:     ldr     c0, [csp, #48]
+
+What's in csp at that point where it crashes?
+take csp + 64 and put it in c1.
+so previously we subtracted 208 from csp
+now we are at position -144 from that starting point, after we add 64 to it.
+
+"The compiler has arranged for main to allocate 144 bytes on the stack by decrementing the capability stack pointer register (csp) by 144 bytes."
+
+So we're in the same place, at the indicated line, as they are in the answer set.
+
+"Further, the compiler has placed lower 48 bytes up into that allocation:"
+
+Looks like our compiler has placed c0 80 bytes up into that allocation:
+0x0000000000110c88 <+232>:     ldr     c0, [csp, #80]
+then it jumps to the routine (passing it 16, 16)
+and then it tries to place c1 64 bytes into the allocation, 16 bytes below c0 
+=> 0x0000000000110c98 <+248>:     ldr     c1, [csp, #64]
+
+"ca0 is made to point at its lowest address and then the pointer to lower is materialized in cs0 by bounding the capability in ca0 to be 16 (sizeof(lower)) bytes long.""
+
+On our side, previously we had this line:
+
+   0x0000000000110c70 <+208>:     scbnds  c0, c0, #0x10
+   so the capability in c0 is bound to be 16 also.
+   
+And at a certain earlier point c1 was also bound to be 16 in a similar way. 
+(Unless it's indirectly changed since)
+So on their side, they've got c1 and c0 overlapping, and we have as well.
+
+(we ended up with c0 and c2 being the same but that doesn't seem important here)
+
+---
+
+On baseline (my local machine) it won't compile.
+
+So use bencher 14 as baseline.
+
+It's clear what happened above, it had a capability in w1 which it passed to the function and CHERI was having none of it.
+
+The full objdump (gdb didn't have any debug info, not sure what I did wrong there) is in objdump_from_buffer-overflow-stack-baseline.txt and the relevant lines are here:
+
+    // load effective address -32 of the local variable (buf?) to the return value
+    11e2:	48 8d 45 e0          	lea    -0x20(%rbp),%rax
+    // write 16 to low 32-bits of the 2nd argument
+    11e6:	be 10 00 00 00       	mov    $0x10,%esi
+    // write the return value to the first argument
+    11eb:	48 89 c7             	mov    %rax,%rdi
+    // here's where the crime occurs
+    11ee:	e8 52 ff ff ff       	callq  1145 <write_buf>
+    // move the 1-byte local variable value to the 4-byte low 32-bits of the return value
+    11f3:	0f b6 45 f0          	movzbl -0x10(%rbp),%eax
+    // copy 1-byte low byte of return value, 
+    // and sign-extend into 4-byte low 32-bits of the return value
+    11f7:	0f be c0             	movsbl %al,%eax
+    
+I have a bit of a hard time following this but it's clear that it just swanned ahead with it whereas CHERI put a stop to it on the equivalent of this line:
+
+// move the 1-byte local variable value to the 4-byte low 32-bits of the return value
+    11f3:	0f b6 45 f0          	movzbl -0x10(%rbp),%eax
+    
+    The point here being, according to the course materials, that in the vanilla version we have the ADDRESS of buf on the stack and in the CHERI version we have a CAPABILITY 
+and it's in 
+
+0x0000000000110c70 <+208>:     scbnds  c0, c0, #0x10 
+
+that the CHERI version enforces the size of c0. 
+
+The course materials also emphasize that in both versions, write_buf stores without bounds checking. In the CHERI version output by gdb, I haven't got the write_buf section because it only output main and I'm not going to re-dump it. But in the vanilla one, I have:
+
+    1159:	48 01 d0             	add    %rdx,%rax
+    115c:	c6 00 62             	movb   $0x62,(%rax)
+    
+So yeah anyway I get it.
+    
+    
