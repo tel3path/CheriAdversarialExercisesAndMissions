@@ -1,0 +1,410 @@
+ ~/cheri/output/morello-sdk/bin/llvm-objdump -dS buffer-overflow-global-cheri
+
+buffer-overflow-global-cheri:	file format elf64-littleaarch64
+
+Disassembly of section .text:
+
+00000000000108e0 <_start>:
+; {
+   108e0: fd 7b bd 62  	stp	c29, c30, [csp, #-96]!
+   108e4: f6 57 81 42  	stp	c22, c21, [csp, #32]
+   108e8: f4 4f 82 42  	stp	c20, c19, [csp, #64]
+   108ec: fd d3 c1 c2  	mov	c29, csp
+; 	if (!has_dynamic_linker)
+   108f0: 62 05 00 b4  	cbz	x2, 0x1099c <_start+0xbc>
+   108f4: 33 d0 c1 c2  	mov	c19, c1
+; 	if (!has_dynamic_linker)
+   108f8: 33 05 00 b4  	cbz	x19, 0x1099c <_start+0xbc>
+; 	if (cheri_getdefault() != NULL)
+   108fc: 21 41 9b c2  	mrs	c1, DDC
+   10900: e1 04 00 b5  	cbnz	x1, 0x1099c <_start+0xbc>
+   10904: f5 03 1f aa  	mov	x21, xzr
+   10908: f4 03 1f aa  	mov	x20, xzr
+   1090c: f6 03 1f 2a  	mov	w22, wzr
+; 	for (Elf_Auxinfo *auxp = auxv; auxp->a_type != AT_NULL;  auxp++) {
+   10910: 01 40 00 02  	add	c1, c0, #16             // =16
+   10914: 04 00 00 14  	b	0x10924 <_start+0x44>
+   10918: c1 01 00 54  	b.ne	0x10950 <_start+0x70>
+; 			argc = auxp->a_un.a_val;
+   1091c: 36 00 40 b9  	ldr	w22, [c1]
+; 	for (Elf_Auxinfo *auxp = auxv; auxp->a_type != AT_NULL;  auxp++) {
+   10920: 21 80 00 02  	add	c1, c1, #32             // =32
+   10924: 28 00 5f f8  	ldur	x8, [c1, #-16]
+   10928: 1f 71 00 f1  	cmp	x8, #28                 // =28
+   1092c: 6d ff ff 54  	b.le	0x10918 <_start+0x38>
+   10930: 1f 75 00 f1  	cmp	x8, #29                 // =29
+   10934: a0 00 00 54  	b.eq	0x10948 <_start+0x68>
+   10938: 1f 7d 00 f1  	cmp	x8, #31                 // =31
+   1093c: 21 ff ff 54  	b.ne	0x10920 <_start+0x40>
+; 			env = (char **)auxp->a_un.a_ptr;
+   10940: 34 24 40 a2  	ldr	c20, [c1], #32
+   10944: f8 ff ff 17  	b	0x10924 <_start+0x44>
+; 			argv = (char **)auxp->a_un.a_ptr;
+   10948: 35 24 40 a2  	ldr	c21, [c1], #32
+   1094c: f6 ff ff 17  	b	0x10924 <_start+0x44>
+; 	for (Elf_Auxinfo *auxp = auxv; auxp->a_type != AT_NULL;  auxp++) {
+   10950: 88 fe ff b5  	cbnz	x8, 0x10920 <_start+0x40>
+; 	__auxargs = auxv; /* Store the global auxargs pointer */
+   10954: 81 00 80 90  	adrp	c1, 0x20000 <_start+0xb4>
+   10958: 21 f4 43 c2  	ldr	c1, [c1, #4048]
+; 	handle_argv(argc, argv, env);
+   1095c: 82 d2 c1 c2  	mov	c2, c20
+; 	__auxargs = auxv; /* Store the global auxargs pointer */
+   10960: 20 00 00 c2  	str	c0, [c1, #0]
+; 	handle_argv(argc, argv, env);
+   10964: e0 03 16 2a  	mov	w0, w22
+   10968: a1 d2 c1 c2  	mov	c1, c21
+   1096c: 0d 00 00 94  	bl	0x109a0 <handle_argv>
+; 		atexit(cleanup);
+   10970: 60 d2 c1 c2  	mov	c0, c19
+   10974: 13 01 00 94  	bl	0x10dc0 <printf+0x10dc0>
+; 	handle_static_init(argc, argv, env);
+   10978: e0 03 16 2a  	mov	w0, w22
+   1097c: a1 d2 c1 c2  	mov	c1, c21
+   10980: 82 d2 c1 c2  	mov	c2, c20
+   10984: 1c 00 00 94  	bl	0x109f4 <handle_static_init>
+; 	exit(main(argc, argv, env));
+   10988: e0 03 16 2a  	mov	w0, w22
+   1098c: a1 d2 c1 c2  	mov	c1, c21
+   10990: 82 d2 c1 c2  	mov	c2, c20
+   10994: af 00 00 94  	bl	0x10c50 <main>
+   10998: 0e 01 00 94  	bl	0x10dd0 <printf+0x10dd0>
+   1099c: 20 00 20 d4  	brk	#0x1
+
+00000000000109a0 <handle_argv>:
+; 	if (environ == NULL)
+   109a0: 83 00 80 90  	adrp	c3, 0x20000 <handle_argv+0x40>
+   109a4: 63 f8 43 c2  	ldr	c3, [c3, #4064]
+   109a8: 64 00 40 c2  	ldr	c4, [c3, #0]
+   109ac: 84 00 00 b4  	cbz	x4, 0x109bc <handle_argv+0x1c>
+; 	if (argc > 0 && argv[0] != NULL) {
+   109b0: 1f 04 00 71  	cmp	w0, #1                  // =1
+   109b4: aa 00 00 54  	b.ge	0x109c8 <handle_argv+0x28>
+   109b8: 0e 00 00 14  	b	0x109f0 <handle_argv+0x50>
+; 		environ = env;
+   109bc: 62 00 00 c2  	str	c2, [c3, #0]
+; 	if (argc > 0 && argv[0] != NULL) {
+   109c0: 1f 04 00 71  	cmp	w0, #1                  // =1
+   109c4: 6b 01 00 54  	b.lt	0x109f0 <handle_argv+0x50>
+   109c8: 21 00 40 c2  	ldr	c1, [c1, #0]
+   109cc: 21 01 00 b4  	cbz	x1, 0x109f0 <handle_argv+0x50>
+; 		__progname = argv[0];
+   109d0: 80 00 80 90  	adrp	c0, 0x20000 <handle_static_init+0x1c>
+   109d4: 00 fc 43 c2  	ldr	c0, [c0, #4080]
+   109d8: 01 00 00 c2  	str	c1, [c0, #0]
+   109dc: 21 04 00 02  	add	c1, c1, #1              // =1
+; 		for (s = __progname; *s != '\0'; s++) {
+   109e0: 28 f0 5f 38  	ldurb	w8, [c1, #-1]
+   109e4: 1f bd 00 71  	cmp	w8, #47                 // =47
+   109e8: 80 ff ff 54  	b.eq	0x109d8 <handle_argv+0x38>
+   109ec: 88 ff ff 35  	cbnz	w8, 0x109dc <handle_argv+0x3c>
+; }
+   109f0: c0 53 c2 c2  	ret	c30
+
+00000000000109f4 <handle_static_init>:
+; {
+   109f4: fd fb bc 62  	stp	c29, c30, [csp, #-112]!
+   109f8: f7 0b 00 c2  	str	c23, [csp, #32]
+   109fc: f6 d7 81 42  	stp	c22, c21, [csp, #48]
+   10a00: f4 cf 82 42  	stp	c20, c19, [csp, #80]
+   10a04: fd d3 c1 c2  	mov	c29, csp
+   10a08: 34 d0 c1 c2  	mov	c20, c1
+; 	if (&_DYNAMIC != NULL)
+   10a0c: 81 00 80 b0  	adrp	c1, 0x21000 <handle_static_init+0x5c>
+   10a10: 21 00 40 c2  	ldr	c1, [c1, #0]
+   10a14: 61 07 00 b5  	cbnz	x1, 0x10b00 <handle_static_init+0x10c>
+   10a18: f5 03 00 2a  	mov	w21, w0
+; 	atexit(finalizer);
+   10a1c: 00 00 80 90  	adrp	c0, 0x10000 <handle_static_init+0x28>
+   10a20: 00 54 2c 02  	add	c0, c0, #2837           // =2837
+   10a24: 00 30 c3 c2  	seal	c0, c0, rb
+   10a28: 53 d0 c1 c2  	mov	c19, c2
+   10a2c: e5 00 00 94  	bl	0x10dc0 <printf+0x10dc0>
+; 	array_size = __preinit_array_end - __preinit_array_start;
+   10a30: 80 00 80 b0  	adrp	c0, 0x21000 <handle_static_init+0x80>
+   10a34: 00 04 40 c2  	ldr	c0, [c0, #16]
+   10a38: 81 00 80 b0  	adrp	c1, 0x21000 <handle_static_init+0x88>
+   10a3c: 21 08 40 c2  	ldr	c1, [c1, #32]
+   10a40: 28 00 00 eb  	subs	x8, x1, x0
+; 	for (n = 0; n < array_size; n++) {
+   10a44: a0 02 00 54  	b.eq	0x10a98 <handle_static_init+0xa4>
+   10a48: 97 00 80 b0  	adrp	c23, 0x21000 <handle_static_init+0x98>
+   10a4c: f7 06 40 c2  	ldr	c23, [c23, #16]
+; 	array_size = __preinit_array_end - __preinit_array_start;
+   10a50: 08 fd 44 93  	asr	x8, x8, #4
+; 	for (n = 0; n < array_size; n++) {
+   10a54: 1f 05 00 f1  	cmp	x8, #1                  // =1
+   10a58: 16 85 9f 9a  	csinc	x22, x8, xzr, hi
+   10a5c: 04 00 00 14  	b	0x10a6c <handle_static_init+0x78>
+   10a60: d6 06 00 f1  	subs	x22, x22, #1            // =1
+   10a64: f7 42 00 02  	add	c23, c23, #16           // =16
+   10a68: 80 01 00 54  	b.eq	0x10a98 <handle_static_init+0xa4>
+; 		fn = __preinit_array_start[n];
+   10a6c: e3 02 40 c2  	ldr	c3, [c23, #0]
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10a70: 83 ff ff b4  	cbz	x3, 0x10a60 <handle_static_init+0x6c>
+   10a74: e0 03 1f aa  	mov	x0, xzr
+   10a78: 00 04 00 02  	add	c0, c0, #1              // =1
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10a7c: 7f 00 00 eb  	cmp	x3, x0
+   10a80: 00 ff ff 54  	b.eq	0x10a60 <handle_static_init+0x6c>
+; 			fn(argc, argv, env);
+   10a84: e0 03 15 2a  	mov	w0, w21
+   10a88: 81 d2 c1 c2  	mov	c1, c20
+   10a8c: 62 d2 c1 c2  	mov	c2, c19
+   10a90: 60 30 c2 c2  	blr	c3
+   10a94: f3 ff ff 17  	b	0x10a60 <handle_static_init+0x6c>
+; 	array_size = __init_array_end - __init_array_start;
+   10a98: 80 00 80 b0  	adrp	c0, 0x21000 <handle_static_init+0xe8>
+   10a9c: 00 0c 40 c2  	ldr	c0, [c0, #48]
+   10aa0: 81 00 80 b0  	adrp	c1, 0x21000 <handle_static_init+0xf0>
+   10aa4: 21 10 40 c2  	ldr	c1, [c1, #64]
+   10aa8: 28 00 00 eb  	subs	x8, x1, x0
+; 	for (n = 0; n < array_size; n++) {
+   10aac: a0 02 00 54  	b.eq	0x10b00 <handle_static_init+0x10c>
+   10ab0: 97 00 80 b0  	adrp	c23, 0x21000 <handle_static_init+0x100>
+   10ab4: f7 0e 40 c2  	ldr	c23, [c23, #48]
+; 	array_size = __init_array_end - __init_array_start;
+   10ab8: 08 fd 44 93  	asr	x8, x8, #4
+; 	for (n = 0; n < array_size; n++) {
+   10abc: 1f 05 00 f1  	cmp	x8, #1                  // =1
+   10ac0: 16 85 9f 9a  	csinc	x22, x8, xzr, hi
+   10ac4: 04 00 00 14  	b	0x10ad4 <handle_static_init+0xe0>
+   10ac8: d6 06 00 f1  	subs	x22, x22, #1            // =1
+   10acc: f7 42 00 02  	add	c23, c23, #16           // =16
+   10ad0: 80 01 00 54  	b.eq	0x10b00 <handle_static_init+0x10c>
+; 		fn = __init_array_start[n];
+   10ad4: e3 02 40 c2  	ldr	c3, [c23, #0]
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10ad8: 83 ff ff b4  	cbz	x3, 0x10ac8 <handle_static_init+0xd4>
+   10adc: e0 03 1f aa  	mov	x0, xzr
+   10ae0: 00 04 00 02  	add	c0, c0, #1              // =1
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10ae4: 7f 00 00 eb  	cmp	x3, x0
+   10ae8: 00 ff ff 54  	b.eq	0x10ac8 <handle_static_init+0xd4>
+; 			fn(argc, argv, env);
+   10aec: e0 03 15 2a  	mov	w0, w21
+   10af0: 81 d2 c1 c2  	mov	c1, c20
+   10af4: 62 d2 c1 c2  	mov	c2, c19
+   10af8: 60 30 c2 c2  	blr	c3
+   10afc: f3 ff ff 17  	b	0x10ac8 <handle_static_init+0xd4>
+; }
+   10b00: f4 cf c2 42  	ldp	c20, c19, [csp, #80]
+   10b04: f6 d7 c1 42  	ldp	c22, c21, [csp, #48]
+   10b08: f7 0b 40 c2  	ldr	c23, [csp, #32]
+   10b0c: fd fb c3 22  	ldp	c29, c30, [csp], #112
+   10b10: c0 53 c2 c2  	ret	c30
+
+0000000000010b14 <finalizer>:
+; {
+   10b14: fd 7b be 62  	stp	c29, c30, [csp, #-64]!
+   10b18: f4 4f 81 42  	stp	c20, c19, [csp, #32]
+   10b1c: fd d3 c1 c2  	mov	c29, csp
+; 	array_size = __fini_array_end - __fini_array_start;
+   10b20: 93 00 80 b0  	adrp	c19, 0x21000 <finalizer+0x50>
+   10b24: 73 16 40 c2  	ldr	c19, [c19, #80]
+   10b28: 80 00 80 b0  	adrp	c0, 0x21000 <finalizer+0x58>
+   10b2c: 00 18 40 c2  	ldr	c0, [c0, #96]
+   10b30: 08 00 13 eb  	subs	x8, x0, x19
+; 	for (n = array_size; n > 0; n--) {
+   10b34: e0 01 00 54  	b.eq	0x10b70 <finalizer+0x5c>
+; 	array_size = __fini_array_end - __fini_array_start;
+   10b38: 08 fd 44 93  	asr	x8, x8, #4
+; 	for (n = array_size; n > 0; n--) {
+   10b3c: 14 05 00 d1  	sub	x20, x8, #1             // =1
+   10b40: 04 00 00 14  	b	0x10b50 <finalizer+0x3c>
+   10b44: 94 06 00 d1  	sub	x20, x20, #1            // =1
+   10b48: 9f 06 00 b1  	cmn	x20, #1                 // =1
+   10b4c: 20 01 00 54  	b.eq	0x10b70 <finalizer+0x5c>
+; 		fn = __fini_array_start[n - 1];
+   10b50: 60 7a 74 a2  	ldr	c0, [c19, x20, lsl #4]
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10b54: 80 ff ff b4  	cbz	x0, 0x10b44 <finalizer+0x30>
+   10b58: e1 03 1f aa  	mov	x1, xzr
+   10b5c: 21 04 00 02  	add	c1, c1, #1              // =1
+; 		if ((uintptr_t)fn != 0 && (uintptr_t)fn != 1)
+   10b60: 1f 00 01 eb  	cmp	x0, x1
+   10b64: 00 ff ff 54  	b.eq	0x10b44 <finalizer+0x30>
+; 			(fn)();
+   10b68: 00 30 c2 c2  	blr	c0
+   10b6c: f6 ff ff 17  	b	0x10b44 <finalizer+0x30>
+; }
+   10b70: f4 4f c1 42  	ldp	c20, c19, [csp, #32]
+   10b74: fd 7b c2 22  	ldp	c29, c30, [csp], #64
+   10b78: c0 53 c2 c2  	ret	c30
+
+0000000000010b7c <run_cxa_finalize>:
+; 	if (__cxa_finalize != NULL)
+   10b7c: 80 00 80 b0  	adrp	c0, 0x21000 <fill_buf+0x10>
+   10b80: 00 1c 40 c2  	ldr	c0, [c0, #112]
+   10b84: 00 01 00 b4  	cbz	x0, 0x10ba4 <run_cxa_finalize+0x28>
+   10b88: fd 7b bf 62  	stp	c29, c30, [csp, #-32]!
+   10b8c: fd d3 c1 c2  	mov	c29, csp
+; 		__cxa_finalize(__dso_handle);
+   10b90: 80 00 80 b0  	adrp	c0, 0x21000 <fill_buf+0x24>
+   10b94: 00 20 40 c2  	ldr	c0, [c0, #128]
+   10b98: 00 00 40 c2  	ldr	c0, [c0, #0]
+   10b9c: 91 00 00 94  	bl	0x10de0 <printf+0x10de0>
+; }
+   10ba0: fd 7b c1 22  	ldp	c29, c30, [csp], #32
+   10ba4: c0 53 c2 c2  	ret	c30
+		...
+
+0000000000010bb0 <fill_buf>:
+   10bb0: ff 43 81 02  	sub	csp, csp, #80           // =80
+   10bb4: 03 d0 c1 c2  	mov	c3, c0
+   10bb8: e0 03 01 02  	add	c0, csp, #64            // =64
+   10bbc: 04 38 c8 c2  	scbnds	c4, c0, #16             // =16
+   10bc0: 80 d0 c1 c2  	mov	c0, c4
+   10bc4: e0 03 00 c2  	str	c0, [csp, #0]
+   10bc8: e0 e3 00 02  	add	c0, csp, #56            // =56
+   10bcc: 02 38 c4 c2  	scbnds	c2, c0, #8              // =8
+   10bd0: 40 d0 c1 c2  	mov	c0, c2
+   10bd4: e0 07 00 c2  	str	c0, [csp, #16]
+   10bd8: e0 c3 00 02  	add	c0, csp, #48            // =48
+   10bdc: 00 38 c4 c2  	scbnds	c0, c0, #8              // =8
+   10be0: 05 d0 c1 c2  	mov	c5, c0
+   10be4: e5 0b 00 c2  	str	c5, [csp, #32]
+   10be8: 83 00 00 c2  	str	c3, [c4, #0]
+   10bec: 41 00 00 f9  	str	x1, [c2]
+   10bf0: e8 03 1f aa  	mov	x8, xzr
+   10bf4: 08 00 00 f9  	str	x8, [c0]
+   10bf8: 01 00 00 14  	b	0x10bfc <fill_buf+0x4c>
+   10bfc: e0 07 40 c2  	ldr	c0, [csp, #16]
+   10c00: e1 0b 40 c2  	ldr	c1, [csp, #32]
+   10c04: 28 00 40 f9  	ldr	x8, [c1]
+   10c08: 09 00 40 f9  	ldr	x9, [c0]
+   10c0c: 08 01 09 eb  	subs	x8, x8, x9
+   10c10: c8 01 00 54  	b.hi	0x10c48 <fill_buf+0x98>
+   10c14: 01 00 00 14  	b	0x10c18 <fill_buf+0x68>
+   10c18: e1 0b 40 c2  	ldr	c1, [csp, #32]
+   10c1c: e0 03 40 c2  	ldr	c0, [csp, #0]
+   10c20: 00 00 40 c2  	ldr	c0, [c0, #0]
+   10c24: 29 00 40 f9  	ldr	x9, [c1]
+   10c28: 48 0c 80 52  	mov	w8, #98
+   10c2c: 08 68 29 38  	strb	w8, [c0, x9]
+   10c30: 01 00 00 14  	b	0x10c34 <fill_buf+0x84>
+   10c34: e0 0b 40 c2  	ldr	c0, [csp, #32]
+   10c38: 08 00 40 f9  	ldr	x8, [c0]
+   10c3c: 08 05 00 91  	add	x8, x8, #1              // =1
+   10c40: 08 00 00 f9  	str	x8, [c0]
+   10c44: ee ff ff 17  	b	0x10bfc <fill_buf+0x4c>
+   10c48: ff 43 01 02  	add	csp, csp, #80           // =80
+   10c4c: c0 53 c2 c2  	ret	c30
+
+0000000000010c50 <main>:
+   10c50: ff 83 81 02  	sub	csp, csp, #96           // =96
+   10c54: fd 7b 82 42  	stp	c29, c30, [csp, #64]
+   10c58: fd 03 01 02  	add	c29, csp, #64           // =64
+   10c5c: a0 13 80 02  	sub	c0, c29, #4             // =4
+   10c60: 00 38 c2 c2  	scbnds	c0, c0, #4              // =4
+   10c64: e8 03 1f 2a  	mov	w8, wzr
+   10c68: a8 83 1f b8  	stur	w8, [c29, #-8]
+   10c6c: 08 00 00 b9  	str	w8, [c0]
+   10c70: 24 00 00 94  	bl	0x10d00 <main_asserts>
+   10c74: 80 00 80 b0  	adrp	c0, 0x21000 <main+0x68>
+   10c78: 00 24 40 c2  	ldr	c0, [c0, #144]
+   10c7c: e0 07 00 c2  	str	c0, [csp, #16]
+   10c80: 68 0c 80 52  	mov	w8, #99
+   10c84: 08 00 00 39  	strb	w8, [c0]
+   10c88: 08 00 40 39  	ldrb	w8, [c0]
+   10c8c: e0 d3 c1 c2  	mov	c0, csp
+   10c90: 08 00 00 f9  	str	x8, [c0]
+   10c94: 00 38 c8 c2  	scbnds	c0, c0, #16             // =16
+   10c98: 09 70 c6 c2  	clrperm	c9, c0, wx
+   10c9c: 80 00 80 90  	adrp	c0, 0x20000 <main+0x8c>
+   10ca0: 00 88 43 c2  	ldr	c0, [c0, #3616]
+   10ca4: e0 0b 00 c2  	str	c0, [csp, #32]
+   10ca8: 52 00 00 94  	bl	0x10df0 <printf+0x10df0>
+   10cac: 80 00 80 b0  	adrp	c0, 0x21000 <main+0xa0>
+   10cb0: 00 28 40 c2  	ldr	c0, [c0, #160]
+   10cb4: 28 00 80 52  	mov	w8, #1
+   10cb8: 08 02 a0 72  	movk	w8, #16, lsl #16
+   10cbc: e1 03 08 2a  	mov	w1, w8
+   10cc0: bc ff ff 97  	bl	0x10bb0 <fill_buf>
+   10cc4: e1 07 40 c2  	ldr	c1, [csp, #16]
+   10cc8: e0 0b 40 c2  	ldr	c0, [csp, #32]
+   10ccc: 28 00 40 39  	ldrb	w8, [c1]
+   10cd0: e1 d3 c1 c2  	mov	c1, csp
+   10cd4: 28 00 00 f9  	str	x8, [c1]
+   10cd8: 21 38 c8 c2  	scbnds	c1, c1, #16             // =16
+   10cdc: 29 70 c6 c2  	clrperm	c9, c1, wx
+   10ce0: 44 00 00 94  	bl	0x10df0 <printf+0x10df0>
+   10ce4: a0 83 5f b8  	ldur	w0, [c29, #-8]
+   10ce8: fd 7b c2 42  	ldp	c29, c30, [csp, #64]
+   10cec: ff 83 01 02  	add	csp, csp, #96           // =96
+   10cf0: c0 53 c2 c2  	ret	c30
+   10cf4: 1f 20 03 d5  	nop
+   10cf8: 1f 20 03 d5  	nop
+   10cfc: 1f 20 03 d5  	nop
+
+0000000000010d00 <main_asserts>:
+   10d00: fd 7b bf 62  	stp	c29, c30, [csp, #-32]!
+   10d04: fd d3 c1 c2  	mov	c29, csp
+   10d08: 80 00 80 b0  	adrp	c0, 0x21000 <main_asserts+0x4c>
+   10d0c: 00 28 40 c2  	ldr	c0, [c0, #160]
+   10d10: 28 00 80 52  	mov	w8, #1
+   10d14: 08 02 a0 72  	movk	w8, #16, lsl #16
+   10d18: 00 60 a8 c2  	add	c0, c0, x8, uxtx
+   10d1c: 08 50 c0 c2  	gcvalue	x8, c0
+   10d20: 80 00 80 b0  	adrp	c0, 0x21000 <main_asserts+0x64>
+   10d24: 00 24 40 c2  	ldr	c0, [c0, #144]
+   10d28: 09 50 c0 c2  	gcvalue	x9, c0
+   10d2c: 08 01 09 eb  	subs	x8, x8, x9
+   10d30: c0 01 00 54  	b.eq	0x10d68 <main_asserts+0x68>
+   10d34: 01 00 00 14  	b	0x10d38 <main_asserts+0x38>
+   10d38: 28 00 80 52  	mov	w8, #1
+   10d3c: 08 02 a0 72  	movk	w8, #16, lsl #16
+   10d40: 09 11 c7 c2  	rrlen	x9, x8
+   10d44: 0a 02 a0 52  	mov	w10, #1048576
+   10d48: 4a 11 c7 c2  	rrlen	x10, x10
+   10d4c: 4a 01 08 eb  	subs	x10, x10, x8
+   10d50: 08 01 89 9a  	csel	x8, x8, x9, eq
+   10d54: 49 00 80 52  	mov	w9, #2
+   10d58: 09 02 a0 72  	movk	w9, #16, lsl #16
+   10d5c: 08 01 09 eb  	subs	x8, x8, x9
+   10d60: 63 00 00 54  	b.lo	0x10d6c <main_asserts+0x6c>
+   10d64: 01 00 00 14  	b	0x10d68 <main_asserts+0x68>
+   10d68: 09 00 00 14  	b	0x10d8c <main_asserts+0x8c>
+   10d6c: 80 00 80 90  	adrp	c0, 0x20000 <printf+0x10dac>
+   10d70: 00 8c 43 c2  	ldr	c0, [c0, #3632]
+   10d74: 81 00 80 90  	adrp	c1, 0x20000 <printf+0x10db4>
+   10d78: 21 90 43 c2  	ldr	c1, [c1, #3648]
+   10d7c: 83 00 80 90  	adrp	c3, 0x20000 <printf+0x10dbc>
+   10d80: 63 94 43 c2  	ldr	c3, [c3, #3664]
+   10d84: 62 03 80 52  	mov	w2, #27
+   10d88: 1e 00 00 94  	bl	0x10e00 <printf+0x10e00>
+   10d8c: fd 7b c1 22  	ldp	c29, c30, [csp], #32
+   10d90: c0 53 c2 c2  	ret	c30
+
+Disassembly of section .plt:
+
+0000000000010da0 <.plt>:
+   10da0: f0 7b bf 62  	stp	c16, c30, [csp, #-32]!
+   10da4: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0x88>
+   10da8: 11 3e 40 c2  	ldr	c17, [c16, #240]
+   10dac: 10 c2 03 02  	add	c16, c16, #240          // =240
+   10db0: 20 12 c2 c2  	br	c17
+   10db4: 1f 20 03 d5  	nop
+   10db8: 1f 20 03 d5  	nop
+   10dbc: 1f 20 03 d5  	nop
+   10dc0: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0xa4>
+   10dc4: 10 02 04 02  	add	c16, c16, #256          // =256
+   10dc8: 11 02 40 c2  	ldr	c17, [c16, #0]
+   10dcc: 20 12 c2 c2  	br	c17
+   10dd0: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0xb4>
+   10dd4: 10 42 04 02  	add	c16, c16, #272          // =272
+   10dd8: 11 02 40 c2  	ldr	c17, [c16, #0]
+   10ddc: 20 12 c2 c2  	br	c17
+   10de0: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0xc4>
+   10de4: 10 82 04 02  	add	c16, c16, #288          // =288
+   10de8: 11 02 40 c2  	ldr	c17, [c16, #0]
+   10dec: 20 12 c2 c2  	br	c17
+   10df0: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0xd4>
+   10df4: 10 c2 04 02  	add	c16, c16, #304          // =304
+   10df8: 11 02 40 c2  	ldr	c17, [c16, #0]
+   10dfc: 20 12 c2 c2  	br	c17
+   10e00: 10 01 80 b0  	adrp	c16, 0x31000 <.plt+0xe4>
+   10e04: 10 02 05 02  	add	c16, c16, #320          // =320
+   10e08: 11 02 40 c2  	ldr	c17, [c16, #0]
+   10e0c: 20 12 c2 c2  	br	c17

@@ -1,0 +1,179 @@
+CHERI ADVERSARIAL EXERCISES AND MISSIONS
+
+Exercise 2.5: Exercise an Inter-Global-Object Buffer Overflow
+
+Q. This exercise demonstrates an inter-object buffer overflow on baseline and CHERI-enabled architectures, and asks you to characterize and fix the bug detected by CHERI bounds enforcement. It also asks you to use GDB for debugging purposes.
+
+This example uses two global objects (in .data) to demonstrate an overflow. It is worth pondering how the bounds for pointers to globals come to be set!
+
+1. Compile buffer-overflow-global.c for the baseline architecture to the binary buffer-overflow-global-baseline and for the CHERI-aware architecture to buffer-overflow-global-cheri.
+
+For this exercise, add -G0 to your compiler flags (this ensures c is not placed in the small data section away from buffer).
+
+2. Run both programs and observe the output.
+
+----
+
+A: 
+
+BASELINE
+--------
+
+Doesn't work on my local machine or on bencher14. Change ptraddr_t to size_t. 
+
+./buffer-overflow-global-baseline
+c = c
+c = b
+
+CHERI
+-----
+
+SSHPORT=10090 make -f -G0 Makefile.morello-purecap buffer-overflow-global-cheri
+
+The make command doesn't recognize -G0, doesn't seem to have an equivalent, and I'm not going to wrestle with it.
+
+./buffer-overflow-global-cheri
+c = c
+In-address space security exception (core dumped)
+
+As expected.
+
+======
+
+Q. 2. Using GDB on the core dump (or run the CHERI program under gdb): Why has the CHERI program failed?
+
+----
+
+A: (gdb) r
+Starting program: /root/buffer-overflow-global-cheri 
+c = c
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability bounds fault.
+0x0000000000110c2c in fill_buf ()
+
+(gdb) info reg
+leads us to:
+
+pcc            0xb05dc000224700040000000000110c2c 0x110c2c <fill_buf+124> [rxRE,0x100000-0x131200]
+pcc            0xb05dc000224700040000000000110c2c 1117228 <fill_buf+124> 
+[rxRE,1048576-1249792]
+201216
+
+And that leads us to:
+pc             0x110c2c            1117228
+
+(gdb) x/i $pcc
+=> 0x110c2c <fill_buf+124>: strb    w8, [c0, x9]
+c8 is 98 which is the letter 'b'
+c0 is 128 wide
+and x9 is 128. 
+
+Disassembly doesn't tell us (well, me) more than that
+
+====
+
+Q: 4. Modify buffer-overflow-global.c to increase the buffer size from 128 bytes to 1Mbyte + 1 byte.
+
+----
+
+A: BASELINE:
+
+./buffer-overflow-global-baseline 
+c = c
+c = b
+
+====
+
+Q: 5. Recompile and re-run buffer-overflow-global-cheri. Why does it no longer crash, even though the buffer overflow exists in the source code? Is the adjacent field still corrupted (i.e., has spatial safety been violated between allocations)?
+
+CHERI:
+
+ ./buffer-overflow-global-cheri
+c = c
+c = c
+
+(gdb) r
+Starting program: /root/buffer-overflow-global-cheri 
+c = c
+c = c
+[Inferior 1 (process 1031) exited normally]
+(gdb) 
+
+(gdb) b fill_buf
+Breakpoint 1 at 0x110bbc
+(gdb) r
+Starting program: /root/buffer-overflow-global-cheri 
+c = c
+
+Breakpoint 1, 0x0000000000110bbc in fill_buf ()
+              0x0000000000110bbc
+(gdb) 
+
+(gdb) info reg
+[blah, blah]
+
+pcc            0xb05dc0000c6740010000000000110bbc 0x110bbc <fill_buf+12> [rxRE,0x100000-0x231800]
+
+pcc            234430905092471475448422872000901483452 1117116 <fill_buf+12> [rxRE,1048576-2299904]
+
+so the width is 1251328
+
+It is positioned 68540 in
+and has 134212 left
+
+(gdb) x/i $pcc
+=> 0x110bbc <fill_buf+12>:  scbnds  c4, c0, #0x10
+
+Oh so it's c4, is it.
+
+c4             0xdc5fc0006142a140000000004039a140 0x4039a140 [rwRWE,0x4039a140-0x4039a142]
+c4             292927321526986798322629748208401228096 1077518656 [rwRWE,1077518656-1077518658]
+So c4 is two units wide?
+
+c0             0xdc5d40003ffdbfff0000fffffff7ff30 0xfffffff7ff30 [rwRW,0xffffbff80000-0xfffffff80000]
+c0             292914340774544185242223510928385113904 281474976186160 [rwRW,281473902444544-281474976186368]
+width of 1073741824
+which is 1024^3
+
+I did a bunch of parsing here before conceding I had wandered away from the point.
+
+At the breakpoint, pcc was 1251328 wide.
+Divided by 1024, that's 1222. 198 bytes more than it needs.
+Why 198? You can only divide that by 2.
+
+THEY had 1024 * 1026 bytes, ie 2 * 1024 bytes of padding.
+WE had only 198 bytes of padding. Fat pointers at work here?
+
+====
+
+Q: 6. Modify buffer-overflow-global.c to restore the original buffer size of 128 bytes, and fix the bug by correcting accesses to the allocated array.
+
+7. Recompile and run buffer-overflow-global-cheri to demonstrate that the program is now able to continue.
+
+--
+
+A: This isn't mysterious, is it? You'd just change
+
+for (size_t i = 0; i <= len; i++)
+
+to i < len?
+
+Yes you would, according to their answer set.
+
+Aha:
+
+./buffer-overflow-global-baseline
+c = c
+c = c
+
+and
+
+root@cheribsd-morello-purecap:~ # ./buffer-overflow-global-cheri
+c = c
+c = c
+
+
+
+
+
