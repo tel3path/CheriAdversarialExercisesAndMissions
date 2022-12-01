@@ -1,0 +1,233 @@
+objdump -dS buffer-overflow-subobject-cheri
+
+buffer-overflow-subobject-cheri:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000201620 <_start>:
+  201620:	31 ed                	xor    %ebp,%ebp
+  201622:	49 89 d1             	mov    %rdx,%r9
+  201625:	5e                   	pop    %rsi
+  201626:	48 89 e2             	mov    %rsp,%rdx
+  201629:	48 83 e4 f0          	and    $0xfffffffffffffff0,%rsp
+  20162d:	50                   	push   %rax
+  20162e:	54                   	push   %rsp
+  20162f:	4c 8d 05 fa 01 00 00 	lea    0x1fa(%rip),%r8        # 201830 <__libc_csu_fini>
+  201636:	48 8d 0d 93 01 00 00 	lea    0x193(%rip),%rcx        # 2017d0 <__libc_csu_init>
+  20163d:	48 8d 3d 1c 01 00 00 	lea    0x11c(%rip),%rdi        # 201760 <main>
+  201644:	ff 15 d6 13 00 00    	callq  *0x13d6(%rip)        # 202a20 <__libc_start_main@GLIBC_2.2.5>
+  20164a:	f4                   	hlt    
+  20164b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+
+0000000000201650 <_dl_relocate_static_pie>:
+  201650:	c3                   	retq   
+  201651:	cc                   	int3   
+  201652:	cc                   	int3   
+  201653:	cc                   	int3   
+  201654:	cc                   	int3   
+  201655:	cc                   	int3   
+  201656:	cc                   	int3   
+  201657:	cc                   	int3   
+  201658:	cc                   	int3   
+  201659:	cc                   	int3   
+  20165a:	cc                   	int3   
+  20165b:	cc                   	int3   
+  20165c:	cc                   	int3   
+  20165d:	cc                   	int3   
+  20165e:	cc                   	int3   
+  20165f:	cc                   	int3   
+
+0000000000201660 <deregister_tm_clones>:
+  201660:	b8 40 3a 20 00       	mov    $0x203a40,%eax
+  201665:	48 3d 40 3a 20 00    	cmp    $0x203a40,%rax
+  20166b:	74 13                	je     201680 <deregister_tm_clones+0x20>
+  20166d:	b8 00 00 00 00       	mov    $0x0,%eax
+  201672:	48 85 c0             	test   %rax,%rax
+  201675:	74 09                	je     201680 <deregister_tm_clones+0x20>
+  201677:	bf 40 3a 20 00       	mov    $0x203a40,%edi
+  20167c:	ff e0                	jmpq   *%rax
+  20167e:	66 90                	xchg   %ax,%ax
+  201680:	c3                   	retq   
+  201681:	66 66 2e 0f 1f 84 00 	data16 nopw %cs:0x0(%rax,%rax,1)
+  201688:	00 00 00 00 
+  20168c:	0f 1f 40 00          	nopl   0x0(%rax)
+
+0000000000201690 <register_tm_clones>:
+  201690:	be 40 3a 20 00       	mov    $0x203a40,%esi
+  201695:	48 81 ee 40 3a 20 00 	sub    $0x203a40,%rsi
+  20169c:	48 89 f0             	mov    %rsi,%rax
+  20169f:	48 c1 ee 3f          	shr    $0x3f,%rsi
+  2016a3:	48 c1 f8 03          	sar    $0x3,%rax
+  2016a7:	48 01 c6             	add    %rax,%rsi
+  2016aa:	48 d1 fe             	sar    %rsi
+  2016ad:	74 11                	je     2016c0 <register_tm_clones+0x30>
+  2016af:	b8 00 00 00 00       	mov    $0x0,%eax
+  2016b4:	48 85 c0             	test   %rax,%rax
+  2016b7:	74 07                	je     2016c0 <register_tm_clones+0x30>
+  2016b9:	bf 40 3a 20 00       	mov    $0x203a40,%edi
+  2016be:	ff e0                	jmpq   *%rax
+  2016c0:	c3                   	retq   
+  2016c1:	66 66 2e 0f 1f 84 00 	data16 nopw %cs:0x0(%rax,%rax,1)
+  2016c8:	00 00 00 00 
+  2016cc:	0f 1f 40 00          	nopl   0x0(%rax)
+
+00000000002016d0 <__do_global_dtors_aux>:
+  2016d0:	80 3d 89 23 00 00 00 	cmpb   $0x0,0x2389(%rip)        # 203a60 <completed.0>
+  2016d7:	75 17                	jne    2016f0 <__do_global_dtors_aux+0x20>
+  2016d9:	55                   	push   %rbp
+  2016da:	48 89 e5             	mov    %rsp,%rbp
+  2016dd:	e8 7e ff ff ff       	callq  201660 <deregister_tm_clones>
+  2016e2:	c6 05 77 23 00 00 01 	movb   $0x1,0x2377(%rip)        # 203a60 <completed.0>
+  2016e9:	5d                   	pop    %rbp
+  2016ea:	c3                   	retq   
+  2016eb:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+  2016f0:	c3                   	retq   
+  2016f1:	66 66 2e 0f 1f 84 00 	data16 nopw %cs:0x0(%rax,%rax,1)
+  2016f8:	00 00 00 00 
+  2016fc:	0f 1f 40 00          	nopl   0x0(%rax)
+
+0000000000201700 <frame_dummy>:
+  201700:	eb 8e                	jmp    201690 <register_tm_clones>
+  201702:	cc                   	int3   
+  201703:	cc                   	int3   
+  201704:	cc                   	int3   
+  201705:	cc                   	int3   
+  201706:	cc                   	int3   
+  201707:	cc                   	int3   
+  201708:	cc                   	int3   
+  201709:	cc                   	int3   
+  20170a:	cc                   	int3   
+  20170b:	cc                   	int3   
+  20170c:	cc                   	int3   
+  20170d:	cc                   	int3   
+  20170e:	cc                   	int3   
+  20170f:	cc                   	int3   
+
+0000000000201710 <fill_buf>:
+  201710:	55                   	push   %rbp
+  201711:	48 89 e5             	mov    %rsp,%rbp
+  201714:	48 89 7d f8          	mov    %rdi,-0x8(%rbp)
+  201718:	48 89 75 f0          	mov    %rsi,-0x10(%rbp)
+  20171c:	48 c7 45 e8 00 00 00 	movq   $0x0,-0x18(%rbp)
+  201723:	00 
+  201724:	48 8b 45 e8          	mov    -0x18(%rbp),%rax
+  201728:	48 3b 45 f0          	cmp    -0x10(%rbp),%rax
+  20172c:	0f 87 1d 00 00 00    	ja     20174f <fill_buf+0x3f>
+  201732:	48 8b 45 f8          	mov    -0x8(%rbp),%rax
+  201736:	48 8b 4d e8          	mov    -0x18(%rbp),%rcx
+  20173a:	c6 04 08 62          	movb   $0x62,(%rax,%rcx,1)
+  20173e:	48 8b 45 e8          	mov    -0x18(%rbp),%rax
+  201742:	48 83 c0 01          	add    $0x1,%rax
+  201746:	48 89 45 e8          	mov    %rax,-0x18(%rbp)
+  20174a:	e9 d5 ff ff ff       	jmpq   201724 <fill_buf+0x14>
+  20174f:	5d                   	pop    %rbp
+  201750:	c3                   	retq   
+  201751:	66 2e 0f 1f 84 00 00 	nopw   %cs:0x0(%rax,%rax,1)
+  201758:	00 00 00 
+  20175b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+
+0000000000201760 <main>:
+  201760:	55                   	push   %rbp
+  201761:	48 89 e5             	mov    %rsp,%rbp
+  201764:	48 83 ec 10          	sub    $0x10,%rsp
+  201768:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%rbp)
+  20176f:	c7 04 25 e4 3a 20 00 	movl   $0x63,0x203ae4
+  201776:	63 00 00 00 
+  20177a:	8b 34 25 e4 3a 20 00 	mov    0x203ae4,%esi
+  201781:	48 bf c4 04 20 00 00 	movabs $0x2004c4,%rdi
+  201788:	00 00 00 
+  20178b:	b0 00                	mov    $0x0,%al
+  20178d:	e8 de 00 00 00       	callq  201870 <printf@plt>
+  201792:	48 bf 64 3a 20 00 00 	movabs $0x203a64,%rdi
+  201799:	00 00 00 
+  20179c:	be 80 00 00 00       	mov    $0x80,%esi
+  2017a1:	e8 6a ff ff ff       	callq  201710 <fill_buf>
+  2017a6:	8b 34 25 e4 3a 20 00 	mov    0x203ae4,%esi
+  2017ad:	48 bf c4 04 20 00 00 	movabs $0x2004c4,%rdi
+  2017b4:	00 00 00 
+  2017b7:	b0 00                	mov    $0x0,%al
+  2017b9:	e8 b2 00 00 00       	callq  201870 <printf@plt>
+  2017be:	31 c0                	xor    %eax,%eax
+  2017c0:	48 83 c4 10          	add    $0x10,%rsp
+  2017c4:	5d                   	pop    %rbp
+  2017c5:	c3                   	retq   
+  2017c6:	cc                   	int3   
+  2017c7:	cc                   	int3   
+  2017c8:	cc                   	int3   
+  2017c9:	cc                   	int3   
+  2017ca:	cc                   	int3   
+  2017cb:	cc                   	int3   
+  2017cc:	cc                   	int3   
+  2017cd:	cc                   	int3   
+  2017ce:	cc                   	int3   
+  2017cf:	cc                   	int3   
+
+00000000002017d0 <__libc_csu_init>:
+  2017d0:	41 57                	push   %r15
+  2017d2:	4c 8d 3d af 10 00 00 	lea    0x10af(%rip),%r15        # 202888 <__frame_dummy_init_array_entry>
+  2017d9:	41 56                	push   %r14
+  2017db:	49 89 d6             	mov    %rdx,%r14
+  2017de:	41 55                	push   %r13
+  2017e0:	49 89 f5             	mov    %rsi,%r13
+  2017e3:	41 54                	push   %r12
+  2017e5:	41 89 fc             	mov    %edi,%r12d
+  2017e8:	55                   	push   %rbp
+  2017e9:	48 8d 2d a0 10 00 00 	lea    0x10a0(%rip),%rbp        # 202890 <_DYNAMIC>
+  2017f0:	53                   	push   %rbx
+  2017f1:	4c 29 fd             	sub    %r15,%rbp
+  2017f4:	48 83 ec 08          	sub    $0x8,%rsp
+  2017f8:	e8 37 00 00 00       	callq  201834 <_init>
+  2017fd:	48 c1 fd 03          	sar    $0x3,%rbp
+  201801:	74 1b                	je     20181e <__libc_csu_init+0x4e>
+  201803:	31 db                	xor    %ebx,%ebx
+  201805:	0f 1f 00             	nopl   (%rax)
+  201808:	4c 89 f2             	mov    %r14,%rdx
+  20180b:	4c 89 ee             	mov    %r13,%rsi
+  20180e:	44 89 e7             	mov    %r12d,%edi
+  201811:	41 ff 14 df          	callq  *(%r15,%rbx,8)
+  201815:	48 83 c3 01          	add    $0x1,%rbx
+  201819:	48 39 dd             	cmp    %rbx,%rbp
+  20181c:	75 ea                	jne    201808 <__libc_csu_init+0x38>
+  20181e:	48 83 c4 08          	add    $0x8,%rsp
+  201822:	5b                   	pop    %rbx
+  201823:	5d                   	pop    %rbp
+  201824:	41 5c                	pop    %r12
+  201826:	41 5d                	pop    %r13
+  201828:	41 5e                	pop    %r14
+  20182a:	41 5f                	pop    %r15
+  20182c:	c3                   	retq   
+  20182d:	0f 1f 00             	nopl   (%rax)
+
+0000000000201830 <__libc_csu_fini>:
+  201830:	c3                   	retq   
+
+Disassembly of section .init:
+
+0000000000201834 <_init>:
+  201834:	48 83 ec 08          	sub    $0x8,%rsp
+  201838:	48 8b 05 e9 11 00 00 	mov    0x11e9(%rip),%rax        # 202a28 <__gmon_start__@Base>
+  20183f:	48 85 c0             	test   %rax,%rax
+  201842:	74 02                	je     201846 <_init+0x12>
+  201844:	ff d0                	callq  *%rax
+  201846:	48 83 c4 08          	add    $0x8,%rsp
+  20184a:	c3                   	retq   
+
+Disassembly of section .fini:
+
+000000000020184c <_fini>:
+  20184c:	48 83 ec 08          	sub    $0x8,%rsp
+  201850:	48 83 c4 08          	add    $0x8,%rsp
+  201854:	c3                   	retq   
+
+Disassembly of section .plt:
+
+0000000000201860 <printf@plt-0x10>:
+  201860:	ff 35 e2 21 00 00    	pushq  0x21e2(%rip)        # 203a48 <__TMC_END__+0x8>
+  201866:	ff 25 e4 21 00 00    	jmpq   *0x21e4(%rip)        # 203a50 <__TMC_END__+0x10>
+  20186c:	0f 1f 40 00          	nopl   0x0(%rax)
+
+0000000000201870 <printf@plt>:
+  201870:	ff 25 e2 21 00 00    	jmpq   *0x21e2(%rip)        # 203a58 <printf@GLIBC_2.2.5>
+  201876:	68 00 00 00 00       	pushq  $0x0
+  20187b:	e9 e0 ff ff ff       	jmpq   201860 <_fini+0x14>

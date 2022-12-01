@@ -1,0 +1,225 @@
+~/cheri/output/morello-sdk/bin/llvm-objdump -dS buffer-overflow-subobject-cheri
+
+buffer-overflow-subobject-cheri:	file format elf64-x86-64
+'+morello' is not a recognized feature for this target (ignoring feature)
+'+morello' is not a recognized feature for this target (ignoring feature)
+
+Disassembly of section .text:
+
+0000000000201620 <_start>:
+  201620: 31 ed                        	xorl	%ebp, %ebp
+  201622: 49 89 d1                     	movq	%rdx, %r9
+  201625: 5e                           	popq	%rsi
+  201626: 48 89 e2                     	movq	%rsp, %rdx
+  201629: 48 83 e4 f0                  	andq	$-16, %rsp
+  20162d: 50                           	pushq	%rax
+  20162e: 54                           	pushq	%rsp
+  20162f: 4c 8d 05 fa 01 00 00         	leaq	506(%rip), %r8          # 0x201830 <__libc_csu_fini>
+  201636: 48 8d 0d 93 01 00 00         	leaq	403(%rip), %rcx         # 0x2017d0 <__libc_csu_init>
+  20163d: 48 8d 3d 1c 01 00 00         	leaq	284(%rip), %rdi         # 0x201760 <main>
+  201644: ff 15 d6 13 00 00            	callq	*5078(%rip)             # 0x202a20 <printf+0x202a20>
+  20164a: f4                           	hlt
+  20164b: 0f 1f 44 00 00               	nopl	(%rax,%rax)
+
+0000000000201650 <_dl_relocate_static_pie>:
+  201650: c3                           	retq
+  201651: cc                           	int3
+  201652: cc                           	int3
+  201653: cc                           	int3
+  201654: cc                           	int3
+  201655: cc                           	int3
+  201656: cc                           	int3
+  201657: cc                           	int3
+  201658: cc                           	int3
+  201659: cc                           	int3
+  20165a: cc                           	int3
+  20165b: cc                           	int3
+  20165c: cc                           	int3
+  20165d: cc                           	int3
+  20165e: cc                           	int3
+  20165f: cc                           	int3
+
+0000000000201660 <deregister_tm_clones>:
+  201660: b8 40 3a 20 00               	movl	$2112064, %eax          # imm = 0x203A40
+  201665: 48 3d 40 3a 20 00            	cmpq	$2112064, %rax          # imm = 0x203A40
+  20166b: 74 13                        	je	0x201680 <deregister_tm_clones+0x20>
+  20166d: b8 00 00 00 00               	movl	$0, %eax
+  201672: 48 85 c0                     	testq	%rax, %rax
+  201675: 74 09                        	je	0x201680 <deregister_tm_clones+0x20>
+  201677: bf 40 3a 20 00               	movl	$2112064, %edi          # imm = 0x203A40
+  20167c: ff e0                        	jmpq	*%rax
+  20167e: 66 90                        	nop
+  201680: c3                           	retq
+  201681: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+  20168c: 0f 1f 40 00                  	nopl	(%rax)
+
+0000000000201690 <register_tm_clones>:
+  201690: be 40 3a 20 00               	movl	$2112064, %esi          # imm = 0x203A40
+  201695: 48 81 ee 40 3a 20 00         	subq	$2112064, %rsi          # imm = 0x203A40
+  20169c: 48 89 f0                     	movq	%rsi, %rax
+  20169f: 48 c1 ee 3f                  	shrq	$63, %rsi
+  2016a3: 48 c1 f8 03                  	sarq	$3, %rax
+  2016a7: 48 01 c6                     	addq	%rax, %rsi
+  2016aa: 48 d1 fe                     	sarq	%rsi
+  2016ad: 74 11                        	je	0x2016c0 <register_tm_clones+0x30>
+  2016af: b8 00 00 00 00               	movl	$0, %eax
+  2016b4: 48 85 c0                     	testq	%rax, %rax
+  2016b7: 74 07                        	je	0x2016c0 <register_tm_clones+0x30>
+  2016b9: bf 40 3a 20 00               	movl	$2112064, %edi          # imm = 0x203A40
+  2016be: ff e0                        	jmpq	*%rax
+  2016c0: c3                           	retq
+  2016c1: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+  2016cc: 0f 1f 40 00                  	nopl	(%rax)
+
+00000000002016d0 <__do_global_dtors_aux>:
+  2016d0: 80 3d 89 23 00 00 00         	cmpb	$0, 9097(%rip)          # 0x203a60 <completed.0>
+  2016d7: 75 17                        	jne	0x2016f0 <__do_global_dtors_aux+0x20>
+  2016d9: 55                           	pushq	%rbp
+  2016da: 48 89 e5                     	movq	%rsp, %rbp
+  2016dd: e8 7e ff ff ff               	callq	0x201660 <deregister_tm_clones>
+  2016e2: c6 05 77 23 00 00 01         	movb	$1, 9079(%rip)          # 0x203a60 <completed.0>
+  2016e9: 5d                           	popq	%rbp
+  2016ea: c3                           	retq
+  2016eb: 0f 1f 44 00 00               	nopl	(%rax,%rax)
+  2016f0: c3                           	retq
+  2016f1: 66 66 2e 0f 1f 84 00 00 00 00 00     	nopw	%cs:(%rax,%rax)
+  2016fc: 0f 1f 40 00                  	nopl	(%rax)
+
+0000000000201700 <frame_dummy>:
+  201700: eb 8e                        	jmp	0x201690 <register_tm_clones>
+  201702: cc                           	int3
+  201703: cc                           	int3
+  201704: cc                           	int3
+  201705: cc                           	int3
+  201706: cc                           	int3
+  201707: cc                           	int3
+  201708: cc                           	int3
+  201709: cc                           	int3
+  20170a: cc                           	int3
+  20170b: cc                           	int3
+  20170c: cc                           	int3
+  20170d: cc                           	int3
+  20170e: cc                           	int3
+  20170f: cc                           	int3
+
+0000000000201710 <fill_buf>:
+  201710: 55                           	pushq	%rbp
+  201711: 48 89 e5                     	movq	%rsp, %rbp
+  201714: 48 89 7d f8                  	movq	%rdi, -8(%rbp)
+  201718: 48 89 75 f0                  	movq	%rsi, -16(%rbp)
+  20171c: 48 c7 45 e8 00 00 00 00      	movq	$0, -24(%rbp)
+  201724: 48 8b 45 e8                  	movq	-24(%rbp), %rax
+  201728: 48 3b 45 f0                  	cmpq	-16(%rbp), %rax
+  20172c: 0f 87 1d 00 00 00            	ja	0x20174f <fill_buf+0x3f>
+  201732: 48 8b 45 f8                  	movq	-8(%rbp), %rax
+  201736: 48 8b 4d e8                  	movq	-24(%rbp), %rcx
+  20173a: c6 04 08 62                  	movb	$98, (%rax,%rcx)
+  20173e: 48 8b 45 e8                  	movq	-24(%rbp), %rax
+  201742: 48 83 c0 01                  	addq	$1, %rax
+  201746: 48 89 45 e8                  	movq	%rax, -24(%rbp)
+  20174a: e9 d5 ff ff ff               	jmp	0x201724 <fill_buf+0x14>
+  20174f: 5d                           	popq	%rbp
+  201750: c3                           	retq
+  201751: 66 2e 0f 1f 84 00 00 00 00 00	nopw	%cs:(%rax,%rax)
+  20175b: 0f 1f 44 00 00               	nopl	(%rax,%rax)
+
+0000000000201760 <main>:
+  201760: 55                           	pushq	%rbp
+  201761: 48 89 e5                     	movq	%rsp, %rbp
+  201764: 48 83 ec 10                  	subq	$16, %rsp
+  201768: c7 45 fc 00 00 00 00         	movl	$0, -4(%rbp)
+  20176f: c7 04 25 e4 3a 20 00 63 00 00 00     	movl	$99, 2112228
+  20177a: 8b 34 25 e4 3a 20 00         	movl	2112228, %esi
+  201781: 48 bf c4 04 20 00 00 00 00 00	movabsq	$2098372, %rdi          # imm = 0x2004C4
+  20178b: b0 00                        	movb	$0, %al
+  20178d: e8 de 00 00 00               	callq	0x201870 <printf@plt>
+  201792: 48 bf 64 3a 20 00 00 00 00 00	movabsq	$2112100, %rdi          # imm = 0x203A64
+  20179c: be 80 00 00 00               	movl	$128, %esi
+  2017a1: e8 6a ff ff ff               	callq	0x201710 <fill_buf>
+  2017a6: 8b 34 25 e4 3a 20 00         	movl	2112228, %esi
+  2017ad: 48 bf c4 04 20 00 00 00 00 00	movabsq	$2098372, %rdi          # imm = 0x2004C4
+  2017b7: b0 00                        	movb	$0, %al
+  2017b9: e8 b2 00 00 00               	callq	0x201870 <printf@plt>
+  2017be: 31 c0                        	xorl	%eax, %eax
+  2017c0: 48 83 c4 10                  	addq	$16, %rsp
+  2017c4: 5d                           	popq	%rbp
+  2017c5: c3                           	retq
+  2017c6: cc                           	int3
+  2017c7: cc                           	int3
+  2017c8: cc                           	int3
+  2017c9: cc                           	int3
+  2017ca: cc                           	int3
+  2017cb: cc                           	int3
+  2017cc: cc                           	int3
+  2017cd: cc                           	int3
+  2017ce: cc                           	int3
+  2017cf: cc                           	int3
+
+00000000002017d0 <__libc_csu_init>:
+  2017d0: 41 57                        	pushq	%r15
+  2017d2: 4c 8d 3d af 10 00 00         	leaq	4271(%rip), %r15        # 0x202888 <__init_array_start>
+  2017d9: 41 56                        	pushq	%r14
+  2017db: 49 89 d6                     	movq	%rdx, %r14
+  2017de: 41 55                        	pushq	%r13
+  2017e0: 49 89 f5                     	movq	%rsi, %r13
+  2017e3: 41 54                        	pushq	%r12
+  2017e5: 41 89 fc                     	movl	%edi, %r12d
+  2017e8: 55                           	pushq	%rbp
+  2017e9: 48 8d 2d a0 10 00 00         	leaq	4256(%rip), %rbp        # 0x202890 <_DYNAMIC>
+  2017f0: 53                           	pushq	%rbx
+  2017f1: 4c 29 fd                     	subq	%r15, %rbp
+  2017f4: 48 83 ec 08                  	subq	$8, %rsp
+  2017f8: e8 37 00 00 00               	callq	0x201834 <_init>
+  2017fd: 48 c1 fd 03                  	sarq	$3, %rbp
+  201801: 74 1b                        	je	0x20181e <__libc_csu_init+0x4e>
+  201803: 31 db                        	xorl	%ebx, %ebx
+  201805: 0f 1f 00                     	nopl	(%rax)
+  201808: 4c 89 f2                     	movq	%r14, %rdx
+  20180b: 4c 89 ee                     	movq	%r13, %rsi
+  20180e: 44 89 e7                     	movl	%r12d, %edi
+  201811: 41 ff 14 df                  	callq	*(%r15,%rbx,8)
+  201815: 48 83 c3 01                  	addq	$1, %rbx
+  201819: 48 39 dd                     	cmpq	%rbx, %rbp
+  20181c: 75 ea                        	jne	0x201808 <__libc_csu_init+0x38>
+  20181e: 48 83 c4 08                  	addq	$8, %rsp
+  201822: 5b                           	popq	%rbx
+  201823: 5d                           	popq	%rbp
+  201824: 41 5c                        	popq	%r12
+  201826: 41 5d                        	popq	%r13
+  201828: 41 5e                        	popq	%r14
+  20182a: 41 5f                        	popq	%r15
+  20182c: c3                           	retq
+  20182d: 0f 1f 00                     	nopl	(%rax)
+
+0000000000201830 <__libc_csu_fini>:
+  201830: c3                           	retq
+
+Disassembly of section .init:
+
+0000000000201834 <_init>:
+  201834: 48 83 ec 08                  	subq	$8, %rsp
+  201838: 48 8b 05 e9 11 00 00         	movq	4585(%rip), %rax        # 0x202a28 <printf+0x202a28>
+  20183f: 48 85 c0                     	testq	%rax, %rax
+  201842: 74 02                        	je	0x201846 <_init+0x12>
+  201844: ff d0                        	callq	*%rax
+  201846: 48 83 c4 08                  	addq	$8, %rsp
+  20184a: c3                           	retq
+
+Disassembly of section .fini:
+
+000000000020184c <_fini>:
+  20184c: 48 83 ec 08                  	subq	$8, %rsp
+  201850: 48 83 c4 08                  	addq	$8, %rsp
+  201854: c3                           	retq
+
+Disassembly of section .plt:
+
+0000000000201860 <.plt>:
+  201860: ff 35 e2 21 00 00            	pushq	8674(%rip)              # 0x203a48 <_GLOBAL_OFFSET_TABLE_+0x8>
+  201866: ff 25 e4 21 00 00            	jmpq	*8676(%rip)             # 0x203a50 <_GLOBAL_OFFSET_TABLE_+0x10>
+  20186c: 0f 1f 40 00                  	nopl	(%rax)
+
+0000000000201870 <printf@plt>:
+  201870: ff 25 e2 21 00 00            	jmpq	*8674(%rip)             # 0x203a58 <_GLOBAL_OFFSET_TABLE_+0x18>
+  201876: 68 00 00 00 00               	pushq	$0
+  20187b: e9 e0 ff ff ff               	jmp	0x201860 <.plt>

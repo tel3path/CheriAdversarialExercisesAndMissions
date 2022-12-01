@@ -1,0 +1,371 @@
+CHERI ADVERSARIAL EXERCISES AND MISSIONS
+
+Exercise 2.6: Explore Subobject Bounds
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/subobject-bounds/index.html
+
+Q. In the CheriABI run-time environment, bounds are typically associated with memory allocations rather than C types. For example, if a heap memory allocation is made for 1024 bytes, and the structure within it is 768 bytes, then the bounds associated with a pointer will be for the allocation size rather than the structure size.
+
+Subobject Overflows
+With subobject bounds, enforcement occurs on C-language objects within allocations. This exercise is similar to earlier buffer-overflow exercises, but is for such an intra-object overflow. In our example, we consider an array within another structure, overflowing onto an integer in the same allocation.
+
+1. Compile buffer-overflow-subobject.c with a baseline target and binary name of buffer-overflow-subobject-baseline, and with a CHERI-enabled target and binary name of buffer-overflow-subobject-cheri.
+
+2. As in the prior exercises, run the binaries.
+
+----
+
+A:
+
+BASELINE:
+
+./buffer-overflow-subobject-baseline
+b.i = c
+b.i = b
+
+CHERI:
+
+./buffer-overflow-subobject-cheri
+b.i = c
+b.i = b
+
+====
+
+Q: 3. Explore why the CHERI binary didn't fail. Run buffer-overflow-subobject-cheri under gdb and examine the bounds of the buffer argument to fill_buf(). To what do they correspond?
+
+---
+
+A:
+
+With CHERI, you allocate the memory, you get the memory you asked for. You don't get less memory because your structure uses less. Got it.
+
+However, within that allocation, you still get C-language object bounds being enforced.
+
+(gdb) f fill_buf
+No registers.
+
+(gdb) b fill_buf
+Breakpoint 1 at 0x10a5c
+
+(gdb) r
+Starting program: /root/buffer-overflow-subobject-cheri 
+b.i = c
+
+Breakpoint 1, 0x0000000000110a5c in fill_buf ()
+
+Now compare that to what they get from gdb:
+
+Breakpoint 1, fill_buf (buf=0x103e50 <b> [rwRW,0x103e50-0x103ed4] "", len=128)
+
+OK so their bounds are: 0x103e50-0x103ed4 = 1064528-1064660
+
+that's a difference of 132, but gdb shows the length as 128
+
+As their answers say: "The bounds are 132 bytes corresponding to the size of the underlying object."
+
+======
+
+Q: 4. Recompile the buffer-overflow-subobject-cheri binary with the compiler flags -Xclang -cheri-bounds=subobject-safe.
+
+----
+
+A:
+
+~/cheri/output/morello-sdk/bin/clang -Xclang -cheri-bounds=subobject-safe -o buffer-overflow-subobject-cheri buffer-overflow-subobject-cheri.c
+
+OOOO! it compiled!!!!
+
+======
+
+Q: 5. Run the program to demonstrate that the buffer overflow is now caught.
+
+---
+
+./buffer-overflow-subobject-cheri
+-sh: ./buffer-overflow-subobject-cheri: Exec format error
+
+>:-{
+
+Recompile again and try locally:
+
+./buffer-overflow-subobject-cheri
+b.i = c
+b.i = b
+
+And try on QEMU morello:
+
+holiver@bencher14:~/cheri-examples$ ssh -p 10090 root@localhost -t ./buffer-overflow-subobject-cheri
+sh: ./buffer-overflow-subobject-cheri: Exec format error
+Connection to localhost closed.
+
+Well... maybe it's supposed to do that? 
+
+Their expected output is:
+
+# ./buffer-overflow-subobject-cheri
+b.i = c
+In-address space security exception (core dumped)
+
+BUT if it doesn't run at all, wouldn't that constitute an improvement?
+
+-----
+
+Let's gdb it:
+
+(gdb) b fill_buf
+Breakpoint 1 at 0x201714
+(gdb) r
+Starting program: /root/buffer-overflow-subobject-cheri 
+exec: /root/buffer-overflow-subobject-cheri: Exec format error
+During startup program exited with code 126.
+
+Their expected output shows their bounds have changed:
+
+Were: 0x103e50-0x103ed4 = 1064528-1064660 so was 132 wide originally.
+Now: 0x103e50-0x103ed0 = 1064528-1064656 so now it really is 128 wide like it says.
+
+Explanation: "The pointer to the buffer is now bounded to the array rather than the object.
+
+"Investigating further will reveal that the compiler has inserted a bounds-setting instruction prior to the call to fill_buf in main, that is, when the pointer to b.buffer is materialized."
+
+------
+
+OK so let's investigate further
+
+~/cheri/output/morello-sdk/bin/llvm-objdump -dS buffer-overflow-subobject-cheri
+
+Can't do that on QEMU morello. It doesn't recognize 
+objdump, 
+llvm-objdump 
+disas-objdump or 
+aarch64-none-elf-objdump -b buffer-overflow-subobject-cheri -m aarch64
+
+So on bencher14 I get:
+
+~/cheri/output/morello-sdk/bin/llvm-objdump -dS buffer-overflow-subobject-cheri
+
+buffer-overflow-subobject-cheri:	file format elf64-x86-64
+'+morello' is not a recognized feature for this target (ignoring feature)
+'+morello' is not a recognized feature for this target (ignoring feature)
+
+but let's make do with the x86_64 we can actually get, maybe it will tell us something:
+
+// I think movabsq is about forcing it to use an absolute immediate rather than
+// something %rip-relative. The q means 8 bytes?
+//(https://stackoverflow.com/questions/40315803/difference-between-movq-and-movabsq-in-x86-64)
+  201792: 48 bf 64 3a 20 00 00 00 00 00	movabsq	$2112100, %rdi          # imm = 0x203A64
+  // movl is just a mov with size 32
+  // but, it does set a thing to 128 (low 32-bits of %rsi, the 2nd argument)
+  20179c: be 80 00 00 00               	movl	$128, %esi
+  2017a1: e8 6a ff ff ff               	callq	0x201710 <fill_buf>
+  
+----
+
+If I do just an objdump on bencher14 I get:
+
+  // also a movabs, which like its llvm version translates to 2112100
+  // which it moves into the 1st argument
+  // it doesn't have the q which simply means 8 bytes
+  201792:	48 bf 64 3a 20 00 00 	movabs $0x203a64,%rdi
+  // and then...
+  201799:	00 00 00 
+  // and the mov isn't set to size 32 like the llvm one is
+  // but it's 128 again, same as before
+  // into the low 32-bits of the 2nd argument
+  20179c:	be 80 00 00 00       	mov    $0x80,%esi
+  2017a1:	e8 6a ff ff ff       	callq  201710 <fill_buf>
+  
+-----
+
+Well I wonder what happens if I do an objdump on the baseline one then?
+  // Hmm ok this is also a movabs with a value of 4210768
+  // which it moves into the 1st argument
+  4011c5:	48 bf 50 40 40 00 00 	movabs $0x404050,%rdi
+  // same
+  4011cc:	00 00 00 
+  // same 128 into the low 32-bits of the 2nd argument
+  4011cf:	be 80 00 00 00       	mov    $0x80,%esi
+  // a move of the low 32-bits of the return value 8 to the left of the local variable?
+  // this one ISN'T in the CHERI versions
+  4011d4:	89 45 f8             	mov    %eax,-0x8(%rbp)
+  4011d7:	e8 64 ff ff ff       	callq  401140 <fill_buf>
+  
+===========
+
+[At this point I went on an odyssey to see if I could get VIXL https://github.com/capablevms/VIXL.git which LT said might be able to disassemble morello, to install on my QEMU morello instance. Yes yes I know it's ephemeral, but if I could get it working and document how I did so, maybe I could get it going more quickly in the future]
+
+But here's how it ended:
+  
+"To build VIXL the following software is required:
+
+Python 2.7"
+
+and there isn't any way of installing python 2.7 on QEMU morello.
+
+Drat.
+
+=======
+
+And now for the part where we will be
+
+DELIBERATELY USING LARGER BOUNDS
+
+Q. Operations like &object->field that move from super-object to sub-object are very natural in C, and there is no similarly concise syntax for the reverse operation. Nevertheless, C programs occasionally do make use of containerof constructs to do exactly that: derive a pointer to the superobject given a pointer to a subobject within.
+
+A common example is intrusive linked lists, as found, for example, in the BSD <sys/queue.h>. subobject-list.c is an extremely minimal example of such, which we will use to explore the behavior of CHERI C here.
+
+1. Compile subobject-list.c for your CHERI-enabled target to subobject-list-cheri and run it.
+
+--------
+
+SSHPORT=10090 make -f Makefile.morello-purecap subobject-list-cheri
+
+scp -P 10090 subobject-list-cheri root@localhost: 
+
+./subobject-list-cheri
+Traversing list=0x131420 [rwRW,0x131420-0x131440] first=0x1312f0 [rwRW,0x1312e0-0x131310] lastnp=0x131360 [rwRW,0x131340-0x131370]
+ Ilist cursor=0x1312f0 [rwRW,0x1312e0-0x131310]
+  next=0x131350 [rwRW,0x131340-0x131370]
+  prevnp=0x131430 [rwRW,0x131420-0x131440]
+  val field at 0x1312e0 [rwRW,0x1312e0-0x131310]
+ Ilist cursor=0x131350 [rwRW,0x131340-0x131370]
+  next=0x131420 [rwRW,0x131420-0x131440]
+  prevnp=0x131300 [rwRW,0x1312e0-0x131310]
+  val field at 0x131340 [rwRW,0x131340-0x131370]
+Traversing list again, accessing superobject field...
+ Ilist cursor=0x1312f0 [rwRW,0x1312e0-0x131310] value=1 (at 0x1312e0 [rwRW,0x1312e0-0x131310])
+ Ilist cursor=0x131350 [rwRW,0x131340-0x131370] value=3 (at 0x131340 [rwRW,0x131340-0x131370])
+
+=======
+
+Q. 2. What is the length (limit - base) for capabilities to...
+
+the sentinel node (&l)
+
+---
+
+A: 0x131420-0x131440 (1250336-1250368) so it's 32
+
+---
+
+Q: a next pointer (ile_next) to a non-sentinel element
+
+----
+
+A: 0x1312e0-0x131310 (1250016-1250064) so it's 48
+
+----
+
+Q: a previous-next pointer (ile_prevnp) to a non-sentinel element
+
+----
+
+A: 0x131340-0x131370 (1250112-1250160) also 48
+
+=========
+
+Q:
+
+3. Recompile this program, now with -Xclang -cheri-bounds=subobject-safe, and run the result. What happens and why?
+
+----
+
+~/cheri/output/morello-sdk/bin/clang -Xclang -cheri-bounds=subobject-safe -o subobject-list-cheri subobject-list-cheri.c 
+
+[errorpalooza snipped]
+                                              
+12 warnings and 9 errors generated.
+
+---
+
+OK this is interesting - it just plain doesn't compile.
+
+[odyssey snipped]
+
+__subobject_use_container_bounds is only found in two places on Google, one is this tutorial, the other is an answer page for this tutorial which isn't there any more. So I'm not finding it because it's not there to find.
+
+They're expecting an answer like:
+
+Traversing list=0x104350 [rwRW,0x104350-0x104370] first=0x104120 [rwRW,0x104120-0x104140] lastnp=0x104190 [rwRW,0x104190-0x1041a0]
+ Ilist cursor=0x104120 [rwRW,0x104120-0x104140]
+  next=0x104180 [rwRW,0x104180-0x1041a0]
+  prevnp=0x104360 [rwRW,0x104360-0x104370]
+  val field at 0x104110 [rwRW,0x104120-0x104140]
+ Ilist cursor=0x104180 [rwRW,0x104180-0x1041a0]
+  next=0x104350 [rwRW,0x104350-0x104370]
+  prevnp=0x104130 [rwRW,0x104130-0x104140]
+  val field at 0x104170 [rwRW,0x104180-0x1041a0]
+Traversing list again, accessing superobject field...
+In-address space security exception
+
+but I can't get that far. 
+
+Note this warning, offsetof() is not defined.
+
+"subobject-list-cheri.c:75:26: warning: implicit declaration of function '__offsetof' is invalid in C99 [-Wimplicit-function-declaration]
+        struct obj *co = ILIST_CONTAINER(cursor, struct obj, ilist);"
+        
+So what is this getting at?
+
+===============================
+
+Q: 4. The CheriBSD system headers have been extended so that examples like this which use the <sys/cdefs.h> definition of __containerof (or things built atop that) will trip static assertions. Try compiling again with -Xclang -cheri-bounds=subobject-safe -DUSE_CDEFS_CONTAINEROF and observe what the compiler tells you.
+
+----
+
+A:
+
+~/cheri/output/morello-sdk/bin/clang -Xclang -cheri-bounds=subobject-safe -DUSE_CDEFS_CONTAINEROF -o subobject-list-cheri subobject-list-cheri.c 
+
+NOPE still doesn't compile:
+                                             
+11 warnings and 7 errors generated.
+
+SO WHAT IS THIS ABOUT? Let's look at the course materials:
+
+"C spec defines offsetof() primitive and char* casts" (which is the offset of a member within a struct or union type)
+
+"Software uses containerof() for intrusive data structures" (which is a Linux macro that lets you get the address of the containing structure, if you have the address of one of the members)
+
+BUT [odyssey] the definitions they expect in this tutorial, aren't there any more.
+
+I make the changes they suggest to fix the error they expect in their output. It turns out just the same as before.
+
+============
+
+THE POINT
+
+So, what the course materials are asking is: when in previous exercises we ran off the end of the buffer's region of storage into someone else's region of storage, CHERI was putting a stop to that where the vanilla one wasn't. So, WHY ISN'T THIS THE DEFAULT?
+
+Back up and remember the context. In C you can point from a structure to a member of the structure, but not (or not easily) from a member back to its structure 
+
+And they go on to discuss: in C you have offsetof() to get the offset of the member in the structure.
+
+And they say "software" uses containerof() for intrusive structures, esp. in "systems" and "runtime" code. This is a Linux macro that, without being asked about offsets, if you have an address of the member of the structure, you can get the address of the structure.
+
+*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~
+And the course materials ask "In general, incorrect to narrow bounds of pointers to sub-objects?" 
+*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~
+
+WITHOUT subobject bounds narrowing, all capabilities include the full linked list; 
+
+WITH subobject bounds narrowing, next pointers can get you access to the whole list, while previous pointers can only get you access to next pointers. (Nothing points to previous pointers, everything points to a next pointer.) 
+
+*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~
+And, since the header files don't have the declarations the example code expects, I can't compile it (or I can but it doesn't run) with subobject bounds narrowing, and therefore I guess they DID decide that it is, in general, incorrect to narrow bounds of pointers to subobjects! 
+
+UNLESS they implemented it some other way, but I can't see it. The issue https://github.com/CTSRD-CHERI/cheribsd/issues/1164 doesn't seem to have been closed, or am I reading github wrong?
+~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*
+
+So they ask, could it be the default in the future? -DUSE_CDEFS_CONTAINEROF was supposed to enforce non-narrowing. But it didn't work because containerof apparently is not in there any more. So I guess that question answers itself now.
+
+
+
+
+
+
+
+
+
+
+
