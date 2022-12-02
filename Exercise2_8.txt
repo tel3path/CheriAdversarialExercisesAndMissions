@@ -1,0 +1,161 @@
+Adversarial CHERI Exercises and Missions
+
+Exercise 2.8: EXERCISE HEAP OVERFLOWS
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/buffer-overflow-heap/index.html
+
+This exercise demonstrates inter-object heap buffer overflows on baseline and CHERI-enabled architectures, and asks you to characterize and fix the bug detected by CHERI bounds enforcement.
+
+=====
+
+Q: 1. Compile buffer-overflow-heap.c for the baseline architecture to the binary buffer-overflow-heap-baseline and for the CHERI-aware architecture to buffer-overflow-heap-cheri.
+
+2. Run both versions, passing 0x20 as the (sole) command line argument. Observe that the CHERI version crashes with "In-address space security exception".
+
+----
+
+Out of curiosity, on Apple Clang (change ptraddr_t to size_t):
+
+./buffer-overflow-heap-baseline 0x20
+b1=0x7f87f44058f0 b2=0x7f87f4405910 diff=20 [hex so it's 32]
+Overflowing by 1
+b2 begins: ABBB
+Overflowing by 2
+b2 begins: AABB
+
+----
+
+Now on Debian:
+
+./buffer-overflow-heap-baseline 0x20
+b1=0xd7e2a0 b2=0xd7e2d0 diff=30 [ie: 48]
+buffer-overflow-heap-baseline: buffer-overflow-heap-baseline.c:53: int main(int, char **): Assertion `(size_t)(b1 + sz + sz/2) > (size_t)b2' failed.
+Aborted
+
+So they want there to be less than half-a-size between them,
+and there's not. b2 is just on the boundary of 1.5 sz. Anyway, we saw how it worked on Apple.
+
+-----
+
+Now on CHERI:
+
+./buffer-overflow-heap-cheri 0x20
+sz=20, CRRL(sz)=20
+b1=0x40832000 [rwRW,0x40832000-0x40832020] b2=0x40832020 [rwRW,0x40832020-0x40832040] diff=20
+Overflowing by 1
+In-address space security exception (core dumped)
+
+=====
+
+Q: 3. Run the CHERI version, again with 0x20, under gdb and examine the crash in more detail. Where must the bounds on the capability implementing b1 have come from?
+
+----
+
+A: (gdb) r 0x20
+Starting program: /root/buffer-overflow-heap-cheri 0x20
+sz=20, CRRL(sz)=20
+b1=0x40832000 [rwRW,0x40832000-0x40832020] b2=0x40832020 [rwRW,0x40832020-0x40832040] diff=20
+Overflowing by 1
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability bounds fault.
+memset (dst0=0x40832000 [rwRW,0x40832000-0x40832020], c0=65, length=33) at /home/holiver/cheri/cheribsd/lib/libc/string/memset.c:131
+131     /home/holiver/cheri/cheribsd/lib/libc/string/memset.c: No such file or directory.
+
+i r c0
+c0             0xdc5d4000602020000000000040832000 0x40832000 [rwRW,0x40832000-0x40832020]
+
+It already did a memset on b2, then when it tries to do a memset on b1 it falls over.
+So the malloc on b1 must be where the bounds were set.
+
+========
+
+Q: Run both programs again, but now with 0x1001 as the argument. Draw a picture of the portion of the heap containing (the end of) b1 and (the start of) b2. There are, in some sense, two different ends of b1 in the baseline program and three in the CHERI program! What are they and how do they arise?
+
+---
+
+A: [1001 is 4097]
+
+On Apple:
+
+./buffer-overflow-heap-baseline 0x1001
+b1=0x7fb94c808800 b2=0x7fb94c809a00 diff=1200 [ie 4608]
+Overflowing by 1
+b2 begins: BBBB
+Overflowing by 201
+b2 begins: AABB
+
+I got tired of trying to draw this but b2 is 511 after the end of b1, and it's overflowing by 513, which is why we once again see two As running into the start of b2.
+
+Debian:
+
+./buffer-overflow-heap-baseline 0x1001
+b1=0x20ff2a0 b2=0x21002b0 diff=1010
+Overflowing by 1
+b2 begins: BBBB
+Overflowing by 11 [17]
+b2 begins: AABB
+
+Here b2 starts 4112 after b1 so it's 15 after the allocated length of b1. 
+
+/root/buffer-overflow-heap-cheri 0x1001
+sz=1001, CRRL(sz)=1001
+b1=0x40832000 [rwRW,0x40832000-0x40833001] b2=0x40833400 [rwRW,0x40833400-0x40834401] diff=1400
+Overflowing by 1
+
+CHERI:
+
+/root/buffer-overflow-heap-cheri 0x1001
+sz=1001, CRRL(sz)=1001
+b1=0x40832000 [rwRW,0x40832000-0x40833001] b2=0x40833400 [rwRW,0x40833400-0x40834401] diff=1400
+Overflowing by 1
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability bounds fault.
+memset (dst0=0x40832000 [rwRW,0x40832000-0x40833001], c0=65, length=4098) at /home/holiver/cheri/cheribsd/lib/libc/string/memset.c:131
+131     /home/holiver/cheri/cheribsd/lib/libc/string/memset.c: No such file or directory.
+
+b1 is at [0x40832000-0x40833001] = 4097 wide, not rounded up to the next byte
+b2 is at [0x40833400-0x40834401] = 4097 wide, not rounded up to the next bye
+b2 starts 1023 after the end of b1
+b2 starts 5120 after the start of b1
+b2 ends 5120 after the end of b1
+
+Compare this to what they have in their answer set:
+
+their b1 is at [0x407c7000-0x407c8008] = 4104 wide, rounded up 7 to the next byte
+their b2 is at [0x407c8400-0x407c9408] = 4104 wide again, rounded up 7 to the next byte
+their b2 starts 1016 after the end of b1 (7 less than ours)
+their b2 starts 5120 after the start of b1
+their b2 ends 5120 after the end of b1
+
+======
+
+Q: 5. While this program does crash on CHERI, again of a bounds violation, this happens slightly later than might be expected looking at the program's source. In particular, this program actually commits two out of bounds stores using the b1 capability. Examine the output carefully and describe, merely in terms of the mechanism, without venturing philosophical, why the first does not trigger a trap.
+
+---
+
+./buffer-overflow-heap-cheri 0x1001
+sz=1001, CRRL(sz)=1001
+b1=0x40832000 [rwRW,0x40832000-0x40833001] b2=0x40833400 [rwRW,0x40833400-0x40834401] diff=1400
+Overflowing by 1
+In-address space security exception (core dumped)
+
+Mine isn't like theirs - they get to the 2nd overflow. Mine crashes on the first one. 
+
+They say "The first overflow, by 1 byte, is within bounds due to architectural precision and so, as far as the CPU is concerned, is not an overflow despite writing outside the logical bounds of the b1 allocation."
+
+Length<= 4096 gives 1-byte alignment according to course materials
+so ours crashes after the first overflow but theirs doesn't until the 2nd, we have narrower alignment
+
+=====
+
+Q: 6. Now consider the bigger picture. Since CHERI uses compressed capability bounds, what additional steps must be taken, and by whom, to ensure spatial safety of a C program?
+
+----
+
+A: ...? Their answer seems like a statement of the bleedin' obvious: the compiler, the linker, the heap allocator
+
+
+
+

@@ -1,0 +1,85 @@
+Adversarial CHERI Exercises and Missions
+
+Exercise 2.7: CORRUPT A CONTROL-FLOW POINTER USING A SUBOBJECT BUFFER OVERFLOW
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/control-flow-pointer/index.html
+
+This exercise demonstrates how CHERI pointer integrity protection prevents a function pointer overwritten with data due to a buffer overflow from being used for further memory access.
+
+=====
+
+Q: 1. Compile buffer-overflow-fnptr.c with a RISC-V target and binary name of buffer-overflow-fnptr-riscv, and a CHERI-RISC-V target and binary name of buffer-overflow-fnptr-cheri. Do not enable compilation with subobject bounds protection when compiling with the CHERI-RISC-V target.
+
+----
+
+A: 
+
+Out of curiosity, try this locally on Apple clang x86_64:
+
+./buffer-overflow-fnptr-baseline
+zsh: segmentation fault  ./buffer-overflow-fnptr-baseline
+
+---
+
+Now try the same on bencher14 (Debian):
+(Linux bencher14 4.19.0-17-amd64 #1 SMP Debian 4.19.194-3 (2021-07-18) x86_64)
+
+./buffer-overflow-fnptr-baseline
+Segmentation fault
+
+---
+
+Now try the same on CheriBSD/arm64 (cheribsd-morello-purecap):
+
+./buffer-overflow-fnptr-cheri
+Segmentation fault (core dumped)
+
+======
+
+Q: 2. Run the RISC-V program under GDB; why does it crash?
+
+---
+
+A: (gdb) r
+Starting program: /home/holiver/cheri-examples/buffer-overflow-fnptr-baseline 
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00000000aaaaaaaa in ?? ()
+
+The "scream" address is not real
+
+OK this address is nonsensical because...?
+
+https://www.sifive.com/blog/all-aboard-part-4-risc-v-code-models
+
+Addressing modes are expensive both in small designs (due to decode cost) and large designs (due to implicit dependencies). RISC-V only has three addressing modes:
+
+PC-relative, via the auipc, jal and br* instructions.
+Register-offset, via the jalr, addi and all memory instructions.
+Absolute, via the lui instruction (though arguably this is just x0-offset).
+
+OK I guess that's it in a nutshell
+
+====
+
+Q: 3. Run the CHERI-RISC-V program under GDB; why does it crash?
+
+---
+
+A: 
+
+(gdb) r
+Starting program: /root/buffer-overflow-fnptr-cheri 
+
+Program received signal SIGSEGV, Segmentation fault.
+Address not mapped to object.
+0x00000000aaaaaaaa in ?? ()
+
+i.e. same reason, but with a more explanatory error message.
+
+info reg turns up this:
+
+c1             0xb05dc000a21f000400000000aaaaaaaa 0xaaaaaaaa [rxRE,0xaaa80000-0xaaab10c0] (invalid,sentry)
+
+=========
+
