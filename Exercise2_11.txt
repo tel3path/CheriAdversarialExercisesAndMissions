@@ -1,0 +1,1317 @@
+CHERI Adversarial Exercises and Missions.
+
+Exercise 2.11: ADAPT A C PROGRAM TO CHERI C
+
+https://ctsrd-cheri.github.io/cheri-exercises/exercises/adapt-c/index.html
+
+This excercise presents an example C program that includes capability-related issues that might appear as bugs in software initially developed for non-CHERI architectures. The example C program is cat(1) from CheriBSD (and hence FreeBSD) modified to introduce the issues that we want to investigate.
+
+Q: 1. Read Sections 4.2, 4.2.1, 4.2.3 from the CHERI C/C++ Programming Guide. In Section 4.2.1, read only information on the following C-language types: long, uintptr_t and char *,... (pointer types).
+
+Q: 2. Compile cat/cat.c and cat/methods.c for the baseline architecture to the binary cat-baseline and for the CHERI-aware architecture to cat-cheri. The compiler should print some warnings when compiling cat-cheri. Save the output to examine the warnings later.
+
+______
+
+A: Baseline (on Apple clang):
+
+ gcc -o cat-baseline cat.c methods.c
+ 
+-----
+
+A: CHERI
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  cat.c  -o bin/morello-purecap/cat
+ld: error: undefined symbol: do_cat
+>>> referenced by cat.c
+>>>               /tmp/cat-70cd87.o:(scanfiles)
+>>> referenced by cat.c
+>>>               /tmp/cat-70cd87.o:(scanfiles)
+>>> referenced by cat.c
+>>>               /tmp/cat-70cd87.o:(scanfiles)
+clang-13: error: linker command failed with exit code 1 (use -v to see invocation)
+make: *** [build/Makefile.simple:36: bin/morello-purecap/cat] Error 1
+
+That's worse than a warning, that's an error. It can't be explained by the Makefile setup being unsuitable for compiling more than one file because it's finding cat.c but not recognizing the declarations in cat.h.
+
+Using -v didn't tell us much, but just for the record:
+
+SSHPORT=10090 make -v Makefile.morello-purecap -o cat-cheri
+GNU Make 4.3
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2020 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+And no, I don't think I was typing the make command wrong:
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri cat.c methods.c
+make: Nothing to be done for 'cat.c'.
+make: Nothing to be done for 'methods.c'.
+
+(no, going *.c didn't work either)
+
+======
+
+Q: 3. Run both versions to print contents of an arbitrary file (e.g., /etc/hostid), once without any additional flags and once with the -n flag.
+
+A: Baseline:
+
+ ./cat-baseline /etc/man.conf 
+#
+# Generated automatically from man.conf.in by the
+# configure script.
+#
+# man.conf from man-1.6g
+#
+# For more information about this file, see the man pages man(1)
+# and man.conf(5).
+#
+# This file is read by man to configure the default manpath (also used
+# when MANPATH contains an empty substring), to find out where the cat
+# pages corresponding to given man pages should be stored,
+# and to map each PATH element to a manpath element.
+# It may also record the pathname of the man binary. [This is unused.]
+# The format is:
+#
+# MANBIN		pathname
+# MANPATH		manpath_element	[corresponding_catdir]
+# MANPATH_MAP		path_element	manpath_element
+#
+# If no catdir is given, it is assumed to be equal to the mandir
+# (so that this dir has both man1 etc. and cat1 etc. subdirs).
+# This is the traditional Unix setup.
+# Certain versions of the FSSTND recommend putting formatted versions
+# of /usr/.../man/manx/page.x into /var/catman/.../catx/page.x.
+# The keyword FSSTND will cause this behaviour.
+# Certain versions of the FHS recommend putting formatted versions of
+# /usr/.../share/man/[locale/]manx/page.x into
+# /var/cache/man/.../[locale/]catx/page.x.
+# The keyword FHS will cause this behaviour (and overrides FSSTND).
+# Explicitly given catdirs override.
+#
+# FSSTND
+FHS
+#
+# This file is also read by man in order to find how to call nroff, less, etc.,
+# and to determine the correspondence between extensions and decompressors.
+#
+# MANBIN		/usr/local/bin/man
+#
+# Every automatically generated MANPATH includes these fields
+#
+MANPATH	/usr/share/man
+MANPATH	/usr/local/share/man
+MANPATH	/usr/X11/man
+MANPATH	/Library/Apple/usr/share/man
+#
+# Uncomment if you want to include one of these by default
+#
+# MANPATH	/opt/*/man
+# MANPATH	/usr/lib/*/man
+# MANPATH	/usr/share/*/man
+# MANPATH	/usr/kerberos/man
+#
+# Set up PATH to MANPATH mapping
+#
+# If people ask for "man foo" and have "/dir/bin/foo" in their PATH
+# and the docs are found in "/dir/man", then no mapping is required.
+#
+# The below mappings are superfluous when the right hand side is
+# in the mandatory manpath already, but will keep man from statting
+# lots of other nearby files and directories.
+#
+MANPATH_MAP	/bin			/usr/share/man
+MANPATH_MAP	/sbin			/usr/share/man
+MANPATH_MAP	/usr/bin		/usr/share/man
+MANPATH_MAP	/usr/sbin		/usr/share/man
+MANPATH_MAP	/usr/local/bin		/usr/local/share/man
+MANPATH_MAP	/usr/local/sbin		/usr/local/share/man
+MANPATH_MAP	/usr/X11/bin		/usr/X11/man
+MANPATH_MAP	/usr/bin/X11		/usr/X11/man
+MANPATH_MAP	/usr/bin/mh		/usr/share/man
+#
+# NOAUTOPATH keeps man from automatically adding directories that look like
+# manual page directories to the path.
+#
+#NOAUTOPATH
+#
+# NOCACHE keeps man from creating cache pages ("cat pages")
+# (generally one enables/disable cat page creation by creating/deleting
+# the directory they would live in - man never does mkdir)
+# 
+#NOCACHE
+#
+# Useful paths - note that COL should not be defined when
+# NROFF is defined as "groff -Tascii" or "groff -Tlatin1";
+# not only is it superfluous, but it actually damages the output.
+# For use with utf-8, NROFF should be "nroff -mandoc" without -T option.
+# (Maybe - but today I need -Tlatin1 to prevent double conversion to utf8.)
+#
+# If you have a new troff (version 1.18.1?) and its colored output
+# causes problems, add the -c option to TROFF, NROFF, JNROFF.
+#
+TROFF		/usr/bin/groff -Tps -mandoc -c
+NROFF		/usr/bin/groff -Wall -mtty-char -Tascii -mandoc -c
+JNROFF		/usr/bin/groff -Tnippon -mandocj -c
+EQN		/usr/bin/eqn -Tps
+NEQN		/usr/bin/eqn -Tascii
+JNEQN		/usr/bin/eqn -Tnippon
+TBL		/usr/bin/tbl
+# COL		/usr/bin/col
+REFER		/usr/bin/refer
+PIC		/usr/bin/pic
+VGRIND		
+GRAP		
+PAGER		/usr/bin/less -is
+BROWSER		/usr/bin/less -is
+HTMLPAGER	/bin/cat
+CAT		/bin/cat
+#
+# The command "man -a xyzzy" will show all man pages for xyzzy.
+# When CMP is defined man will try to avoid showing the same
+# text twice. (But compressed pages compare unequal.)
+#
+CMP		/usr/bin/cmp -s
+#
+# Compress cat pages
+#
+COMPRESS	/usr/local/bin/xz
+COMPRESS_EXT	.xz
+#
+# Default manual sections (and order) to search if -S is not specified
+# and the MANSECT environment variable is not set.
+#
+MANSECT		1:1p:8:2:3:3p:4:5:6:7:9:0p:tcl:n:l:p:o
+#
+# Default options to use when man is invoked without options
+# This is mainly for the benefit of those that think -a should be the default
+# Note that some systems have /usr/man/allman, causing pages to be shown twice.
+#
+#MANDEFOPTIONS	-a
+#
+# Decompress with given decompressor when input file has given extension
+# The command given must act as a filter.
+#
+.gz		/usr/bin/gunzip -c
+.bz2		/usr/bin/bzip2 -c -d
+.lzma		
+.z		
+.Z		/usr/bin/zcat
+.F		
+.Y		
+.xz		
+helenoliver@Helens-MacBook-Air-3 cat % ./cat-baseline -n /etc/man.conf
+     1	#
+     2	# Generated automatically from man.conf.in by the
+     3	# configure script.
+     4	#
+     5	# man.conf from man-1.6g
+     6	#
+     7	# For more information about this file, see the man pages man(1)
+     8	# and man.conf(5).
+     9	#
+    10	# This file is read by man to configure the default manpath (also used
+    11	# when MANPATH contains an empty substring), to find out where the cat
+    12	# pages corresponding to given man pages should be stored,
+    13	# and to map each PATH element to a manpath element.
+    14	# It may also record the pathname of the man binary. [This is unused.]
+    15	# The format is:
+    16	#
+    17	# MANBIN		pathname
+    18	# MANPATH		manpath_element	[corresponding_catdir]
+    19	# MANPATH_MAP		path_element	manpath_element
+    20	#
+    21	# If no catdir is given, it is assumed to be equal to the mandir
+    22	# (so that this dir has both man1 etc. and cat1 etc. subdirs).
+    23	# This is the traditional Unix setup.
+    24	# Certain versions of the FSSTND recommend putting formatted versions
+    25	# of /usr/.../man/manx/page.x into /var/catman/.../catx/page.x.
+    26	# The keyword FSSTND will cause this behaviour.
+    27	# Certain versions of the FHS recommend putting formatted versions of
+    28	# /usr/.../share/man/[locale/]manx/page.x into
+    29	# /var/cache/man/.../[locale/]catx/page.x.
+    30	# The keyword FHS will cause this behaviour (and overrides FSSTND).
+    31	# Explicitly given catdirs override.
+    32	#
+    33	# FSSTND
+    34	FHS
+    35	#
+    36	# This file is also read by man in order to find how to call nroff, less, etc.,
+    37	# and to determine the correspondence between extensions and decompressors.
+    38	#
+    39	# MANBIN		/usr/local/bin/man
+    40	#
+    41	# Every automatically generated MANPATH includes these fields
+    42	#
+    43	MANPATH	/usr/share/man
+    44	MANPATH	/usr/local/share/man
+    45	MANPATH	/usr/X11/man
+    46	MANPATH	/Library/Apple/usr/share/man
+    47	#
+    48	# Uncomment if you want to include one of these by default
+    49	#
+    50	# MANPATH	/opt/*/man
+    51	# MANPATH	/usr/lib/*/man
+    52	# MANPATH	/usr/share/*/man
+    53	# MANPATH	/usr/kerberos/man
+    54	#
+    55	# Set up PATH to MANPATH mapping
+    56	#
+    57	# If people ask for "man foo" and have "/dir/bin/foo" in their PATH
+    58	# and the docs are found in "/dir/man", then no mapping is required.
+    59	#
+    60	# The below mappings are superfluous when the right hand side is
+    61	# in the mandatory manpath already, but will keep man from statting
+    62	# lots of other nearby files and directories.
+    63	#
+    64	MANPATH_MAP	/bin			/usr/share/man
+    65	MANPATH_MAP	/sbin			/usr/share/man
+    66	MANPATH_MAP	/usr/bin		/usr/share/man
+    67	MANPATH_MAP	/usr/sbin		/usr/share/man
+    68	MANPATH_MAP	/usr/local/bin		/usr/local/share/man
+    69	MANPATH_MAP	/usr/local/sbin		/usr/local/share/man
+    70	MANPATH_MAP	/usr/X11/bin		/usr/X11/man
+    71	MANPATH_MAP	/usr/bin/X11		/usr/X11/man
+    72	MANPATH_MAP	/usr/bin/mh		/usr/share/man
+    73	#
+    74	# NOAUTOPATH keeps man from automatically adding directories that look like
+    75	# manual page directories to the path.
+    76	#
+    77	#NOAUTOPATH
+    78	#
+    79	# NOCACHE keeps man from creating cache pages ("cat pages")
+    80	# (generally one enables/disable cat page creation by creating/deleting
+    81	# the directory they would live in - man never does mkdir)
+    82	# 
+    83	#NOCACHE
+    84	#
+    85	# Useful paths - note that COL should not be defined when
+    86	# NROFF is defined as "groff -Tascii" or "groff -Tlatin1";
+    87	# not only is it superfluous, but it actually damages the output.
+    88	# For use with utf-8, NROFF should be "nroff -mandoc" without -T option.
+    89	# (Maybe - but today I need -Tlatin1 to prevent double conversion to utf8.)
+    90	#
+    91	# If you have a new troff (version 1.18.1?) and its colored output
+    92	# causes problems, add the -c option to TROFF, NROFF, JNROFF.
+    93	#
+    94	TROFF		/usr/bin/groff -Tps -mandoc -c
+    95	NROFF		/usr/bin/groff -Wall -mtty-char -Tascii -mandoc -c
+    96	JNROFF		/usr/bin/groff -Tnippon -mandocj -c
+    97	EQN		/usr/bin/eqn -Tps
+    98	NEQN		/usr/bin/eqn -Tascii
+    99	JNEQN		/usr/bin/eqn -Tnippon
+   100	TBL		/usr/bin/tbl
+   101	# COL		/usr/bin/col
+   102	REFER		/usr/bin/refer
+   103	PIC		/usr/bin/pic
+   104	VGRIND		
+   105	GRAP		
+   106	PAGER		/usr/bin/less -is
+   107	BROWSER		/usr/bin/less -is
+   108	HTMLPAGER	/bin/cat
+   109	CAT		/bin/cat
+   110	#
+   111	# The command "man -a xyzzy" will show all man pages for xyzzy.
+   112	# When CMP is defined man will try to avoid showing the same
+   113	# text twice. (But compressed pages compare unequal.)
+   114	#
+   115	CMP		/usr/bin/cmp -s
+   116	#
+   117	# Compress cat pages
+   118	#
+   119	COMPRESS	/usr/local/bin/xz
+   120	COMPRESS_EXT	.xz
+   121	#
+   122	# Default manual sections (and order) to search if -S is not specified
+   123	# and the MANSECT environment variable is not set.
+   124	#
+   125	MANSECT		1:1p:8:2:3:3p:4:5:6:7:9:0p:tcl:n:l:p:o
+   126	#
+   127	# Default options to use when man is invoked without options
+   128	# This is mainly for the benefit of those that think -a should be the default
+   129	# Note that some systems have /usr/man/allman, causing pages to be shown twice.
+   130	#
+   131	#MANDEFOPTIONS	-a
+   132	#
+   133	# Decompress with given decompressor when input file has given extension
+   134	# The command given must act as a filter.
+   135	#
+   136	.gz		/usr/bin/gunzip -c
+   137	.bz2		/usr/bin/bzip2 -c -d
+   138	.lzma		
+   139	.z		
+   140	.Z		/usr/bin/zcat
+   141	.F		
+   142	.Y		
+   143	.xz	
+   
+----
+
+But I have to compile the CHERI one first so what's going on here? It doesn't recognize do_cat:
+
+void do_cat(long file, int verbose);
+
+Where's it being called? Three places in cat.c
+
+else if (verbose) {
+            if (fd == STDIN_FILENO)
+                do_cat((long)stdin, verbose);
+            else {
+                fp = fdopen(fd, "r");
+                do_cat((long)fp, verbose);
+                fclose(fp);
+            }
+        } else {
+            do_cat(fd, verbose);
+            if (fd != STDIN_FILENO)
+                close(fd);
+                
+Comment them all out and bring them back in:
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  cat.c  -o bin/morello-purecap/cat
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  methods.c  -o bin/morello-purecap/methods
+methods.c:70:46: warning: binary expression on capability types 'ptroff_t' (aka 'unsigned __intcap') and 'uintptr_t' (aka 'unsigned __intcap'); it is not clear which should be used as the source of provenance; currently provenance is inherited from the left-hand side [-Wcheri-provenance]
+    return (write(fildes, (const void *)(off + (uintptr_t)buf), nbyte));
+                                         ~~~ ^ ~~~~~~~~~~~~~~
+methods.c:80:10: warning: cast from provenance-free integer type to pointer type will give pointer that can not be dereferenced [-Wcheri-capability-misuse]
+    fp = (FILE *)file;
+         ^
+2 warnings generated.
+ld: error: undefined symbol: main
+>>> referenced by crt1_c.c:151 (/home/holiver/cheri/cheribsd/lib/csu/aarch64c/crt1_c.c:151)
+>>>               /home/holiver/cheri/output/rootfs-morello-purecap/usr/lib64c/Scrt1.o:()
+
+ld: error: undefined symbol: sflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+
+ld: error: undefined symbol: nflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+
+ld: error: undefined symbol: bflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+
+ld: error: undefined symbol: eflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced 1 more times
+
+ld: error: undefined symbol: tflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+
+ld: error: undefined symbol: vflag
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+
+ld: error: undefined symbol: filename
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(raw_cat)
+>>> referenced 1 more times
+
+ld: error: undefined symbol: rval
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(verbose_cat)
+>>> referenced by methods.c
+>>>               /tmp/methods-d36c4f.o:(raw_cat)
+>>> referenced 1 more times
+clang-13: error: linker command failed with exit code 1 (use -v to see invocation)
+make: *** [build/Makefile.simple:36: bin/morello-purecap/methods] Error 1
+
+Oh no. Yikes. Well bring the first one back in:
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  cat.c  -o bin/morello-purecap/cat
+ld: error: undefined symbol: do_cat
+>>> referenced by cat.c
+>>>               /tmp/cat-05512c.o:(scanfiles)
+clang-13: error: linker command failed with exit code 1 (use -v to see invocation)
+make: *** [build/Makefile.simple:36: bin/morello-purecap/cat] Error 1
+
+Hmmm, that's one less than we got before. Bring the second one back in:
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  cat.c  -o bin/morello-purecap/cat
+ld: error: undefined symbol: do_cat
+>>> referenced by cat.c
+>>>               /tmp/cat-0dfbef.o:(scanfiles)
+clang-13: error: linker command failed with exit code 1 (use -v to see invocation)
+make: *** [build/Makefile.simple:36: bin/morello-purecap/cat] Error 1
+
+Also one less... bring the third one back in
+
+SSHPORT=10090 make -f Makefile.morello-purecap -o cat-cheri
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg  cat.c  -o bin/morello-purecap/cat
+ld: error: undefined symbol: do_cat
+>>> referenced by cat.c
+>>>               /tmp/cat-fc54ca.o:(scanfiles)
+clang-13: error: linker command failed with exit code 1 (use -v to see invocation)
+make: *** [build/Makefile.simple:36: bin/morello-purecap/cat] Error 1
+
+We pass in a long and an int to do_cat.
+
+Long and int are types that should be saved for integers that will never be cast to a pointer type without first combining them with another pointer value.
+
+We look in methods.c for do_cat and we find the first method call is to:
+
+verbose_cat(long file)
+
+and in the first line
+    FILE *fp;
+which will become
+    fp = (FILE *)file;
+    
+I don't know about you, but I'd say that looks like casting a long to a pointer type without first combining it with another pointer value.
+
+OK, let's change the long to a uintptr_t.
+
+Still doesn't work. So best look at what the error means.
+
+in build/Makefile.simple line 36 we have
+
+$(CC) $(CFLAGS) $< $(SHARED_SOURCES) -o $@
+
+     1	# Copyright (c) 2020-2021 The CapableVMs "CHERI Examples" Contributors.
+     2	# SPDX-License-Identifier: MIT OR Apache-2.0
+     3	
+     4	# Common Makefile for simple examples, which compile each %.c file to a single
+     5	# bin/<platform>/% executable.
+     6	# This should not be invoked directly.
+     7	
+     8	ifndef BINDIR
+     9	$(error build/Makefile.vars should set BINDIR)
+    10	endif
+    11	
+    12	SHARED_SOURCES ?=
+    13	CFILES ?= $(wildcard *.c)
+    14	HFILES ?= $(wildcard include/*.h)
+    15	BINS := $(patsubst %.c,$(BINDIR)/%,$(CFILES))
+    16	RUNTGTS := $(patsubst $(BINDIR)/%,run-%,$(BINS))
+    17	
+    18	.PHONY: all clang-format clean $(RUNTGTS)
+    19	
+    20	all: $(BINS)
+    21	
+    22	clang-format:
+    23		$(CFORMAT) -i $(CFILES) $(HFILES)
+    24	
+    25	# Remove outputs, but only remove the top-level 'bin/' if it's empty. This
+    26	# mitigates the risk of accidental damage, e.g. if run from a user's home when
+    27	# they have a ~/bin.
+    28	clean:
+    29		if [ -d bin ]; then \
+    30			rm -rf $(BINDIR); \
+    31			rmdir bin --ignore-fail-on-non-empty; \
+    32		fi
+    33	
+    34	$(BINDIR)/%: %.c $(SHARED_SOURCES) $(HFILES)
+    35		@mkdir -p $(BINDIR)
+    36		$(CC) $(CFLAGS) $< $(SHARED_SOURCES) -o $@
+    37	
+    38	$(RUNTGTS): run-%: $(BINDIR)/%
+    39	ifdef SSHPORT
+    40	ifdef RUNDIR
+    41		ssh $(SSH_OPTIONS) -p $(SSHPORT) $(RUNUSER)@$(RUNHOST) 'mkdir -p $(RUNDIR)'
+    42		scp $(SCP_OPTIONS) -P $(SSHPORT) $^ $(RUNUSER)@$(RUNHOST):$(RUNDIR)
+    43		ssh $(SSH_OPTIONS) -p $(SSHPORT) $(RUNUSER)@$(RUNHOST) -t 'cd $(RUNDIR) && ./$(<F)'
+    44	else
+    45		scp $(SCP_OPTIONS) -P $(SSHPORT) $^ $(RUNUSER)@$(RUNHOST):
+    46		ssh $(SSH_OPTIONS) -p $(SSHPORT) $(RUNUSER)@$(RUNHOST) -t ./$(<F)
+    47	endif
+    48	else
+    49		@echo "'$@' requires SSHPORT to be defined."
+    50		@false
+    51	endif
+
+Looks like Makefile.simple is only geared up to compile single files?
+
+No point arguing
+
+Let's just combine cat.c and methods.c into the single file cheri-cat.c
+
+SSHPORT=10090 make -f Makefile.morello-purecap cheri-cat
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg     cheri-cat.c   -o cheri-cat
+cheri-cat.c:158:46: warning: binary expression on capability types 'ptroff_t' (aka 'unsigned __intcap') and 'uintptr_t' (aka 'unsigned __intcap'); it is not clear which should be used as the source of provenance; currently provenance is inherited from the left-hand side [-Wcheri-provenance]
+    return (write(fildes, (const void *)(off + (uintptr_t)buf), nbyte));
+                                         ~~~ ^ ~~~~~~~~~~~~~~
+cheri-cat.c:167:10: warning: cast from provenance-free integer type to pointer type will give pointer that can not be dereferenced [-Wcheri-capability-misuse]
+    fp = (FILE *)file;
+         ^
+2 warnings generated.
+
+Oh, I know, right?
+
+cheri-cat.c:167:10: warning: cast from provenance-free integer type to pointer type will give pointer that can not be dereferenced [-Wcheri-capability-misuse]
+    fp = (FILE *)file;
+    
+That's what I said.
+
+So change the long back to a uintptr_t; the int verbose is just a flag that doesn't go anywhere
+
+make -f Makefile.morello-purecap cheri-cat
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg     cheri-cat.c   -o cheri-cat
+cheri-cat.c:158:46: warning: binary expression on capability types 'ptroff_t' (aka 'unsigned __intcap') and 'uintptr_t' (aka 'unsigned __intcap'); it is not clear which should be used as the source of provenance; currently provenance is inherited from the left-hand side [-Wcheri-provenance]
+    return (write(fildes, (const void *)(off + (uintptr_t)buf), nbyte));
+                                         ~~~ ^ ~~~~~~~~~~~~~~
+1 warning generated.
+
+So just swap off over to the right side then.
+
+Aha:
+
+SSHPORT=10090 make -f Makefile.morello-purecap cheri-cat
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg     cheri-cat.c   -o cheri-cat
+
+====
+
+Q: 3. Run both versions to print contents of an arbitrary file (e.g., /etc/hostid), once without any additional flags and once with the -n flag.
+
+Oh OK I guess I should un-correct it.
+
+./cheri-cat blorf.txt
+cheri-cat: write(2) failed: Bad address
+root@cheribsd-morello-purecap:~ # ./cheri-cat -n blorf.txt
+In-address space security exception (core dumped)
+
+=====
+
+4. Run the CHERI version, again without any additional flags, under gdb and examine the crash in more detail. Use gdb and not gdb-run.sh to set appropriate breakpoints before your program is started.
+
+(gdb) b do_cat
+Breakpoint 1 at 0x11e14
+(gdb) b write
+Breakpoint 2 at 0x13248
+(gdb) r
+Starting program: /root/cheri-cat 
+
+Breakpoint 1, 0x0000000000111e14 in do_cat ()
+(gdb) c
+Continuing.
+
+Breakpoint 2, write (fd=1, buf=0x4085d000, nbytes=1) at /home/holiver/cheri/cheribsd/lib/libc/sys/write.c:48
+48      /home/holiver/cheri/cheribsd/lib/libc/sys/write.c: No such file or directory.
+(gdb) c
+Continuing.
+cheri-cat: write(2) failed: Bad address
+[Inferior 1 (process 1026) exited with code 01]
+(gdb) 
+The program is not being run.
+(gdb) r blorf.txt
+Starting program: /root/cheri-cat blorf.txt
+
+hmmm
+
+(gdb) r blorf.txt
+Starting program: /root/cheri-cat blorf.txt
+
+Breakpoint 1, write (fd=1, buf=0x4085d000 [rwRW,0x4085d000-0x4085e000], nbytes=7) at /home/holiver/cheri/cheribsd/lib/libc/sys/write.c:48
+48      /home/holiver/cheri/cheribsd/lib/libc/sys/write.c: No such file or directory.
+(gdb) info reg c0 c1 c2
+c0             0x1                 0x1
+c1             0xdc5d40006000d000000000004085d000 0x4085d000 [rwRW,0x4085d000-0x4085e000]
+c2             0x7                 0x7
+
+(gdb) disassemble [ooh, how did I not know you could do this?]
+Dump of assembler code for function write:
+
+Form PCC-relative address to 4KB page adds an immediate value that is shifted left by 12 bits to the PCC value with the bottom 12 bits masked out to form a PCC-relative address and writes the result to the destination register [c3]. This description only applies in A64.
+=> 0x00000000402c9d40 <+0>:       adrp    c3, 0x40389000
+
+Load Register (register) calculates an address from a base register value and an offset register value, loads a word from memory, and writes it to a register. The offset register value can optionally be shifted and extended. For information about memory accesses, see Load/Store addressing modes.
+For the 64-bit variant: is the index shift amount, optional only when <extend> is not LSL. Where it is permitted to be optional, it defaults to #0. It is encoded in"S":
+   0x00000000402c9d44 <+4>:       ldr     c3, [c3, #2528]
+   0x00000000402c9d48 <+8>:       ldr     c3, [c3, #496]
+   
+Branch to Register branches unconditionally to an address in a register, with a hint that this is not a subroutine return.
+   0x00000000402c9d4c <+12>:      br      c3
+End of assembler dump.
+
+Breakpoint 1, 0x0000000000111e14 in do_cat ()
+(gdb) c
+Continuing.
+
+Breakpoint 2, write (fd=1, buf=0x4085d000, nbytes=7) at /home/holiver/cheri/cheribsd/lib/libc/sys/write.c:48
+48      /home/holiver/cheri/cheribsd/lib/libc/sys/write.c: No such file or directory.
+(gdb) c
+Continuing.
+cheri-cat: write(2) failed: Bad address
+[Inferior 1 (process 1027) exited with code 01]
+
+So it tries to write it to c1 and it can't.
+
+"We can see that write() was called to write to stdout (c0) 7 bytes (c2) from a buffer with an untagged capability (c1). The write() libc function does not include a trapping instruction but it jumps with br. Let's see where it jumps to:""
+
+(gdb) ni 4
+_write () at _write.S:4
+4       _write.S: No such file or directory.
+
+(gdb) disassemble
+Dump of assembler code for function _write:
+move 4 into c8
+=> 0x00000000402cbdfc <+0>:       mov     x8, #0x4   
+dunno                     // #4
+   0x00000000402cbe00 <+4>:       svc     #0x0
+   dunno
+   0x00000000402cbe04 <+8>:       b.cs    0x402cbe0c <_write+16>  // b.hs, b.nlast
+   Return from subroutine branches unconditionally to an address in a register, with a hint that this is a subroutine return
+   0x00000000402cbe08 <+12>:      ret     c30
+   0x00000000402cbe0c <+16>:      b       0x402c9d60 <cerror>
+End of assembler dump.
+
+"write() jumped to _write(), a system call wrapper written in assembly, that uses the ecall instruction to make a system call. Let's see what is its result:""
+
+(gdb) ni 2
+Blorf!
+4       in _write.S
+
+"The write() system call failed as the kernel set ct0 to 0x1 and returned errno 0xe in ca0."
+
+Here's c30:
+c30            0xb05dc000a73700040000000000113009 0x113009 <write_off+104> [rxRE,0x100000-0x133980] (sentry)
+
+What has that got to do with us? No idea!
+
+"Looking at errno(2) and write(2), we can conclude that we passed an incorrect address to the buffer. It is likely here because the capability is just the address, without a tag.""
+
+Well, where DO they look at errno(2) and write(2)?
+
+
+=====
+
+5. Get back to the compiler warnings and try to solve a bug that triggered the crash.
+
+---
+
+A: ./cheri-cat blorf.txt
+Blorf!
+
+./cheri-cat -n blorf.txt
+     1  Blorf!
+     
+The way I did it: swap the positions of off and buf.
+
+The way they did it:
+
+"In the CHERI memory protection model, capabilities are derived from a single other capability.
+
+"In our case, off + (uintptr_t)buf resulted in an untagged capability because off holds an integer value in an untagged capability and, as the compiler warns, it is used to create a resulting capability. In order to create a capability using the correct source capability, we can tell the compiler that off does not hold a valid address with a cast:
+
+"+       return (write(fildes, (const void *)((size_t)off + (uintptr_t)buf), nbyte));"
+
+So they cast off to be a size_t so the compiler would recognize it's not a capability.
+
+
+====
+
+6. Run the CHERI version, again with the -n flag, under gdb and examine the crash in more detail. You can use gdb-run.sh this time.
+
+A: but it didn't crash? Oh well
+
+Previously:
+
+./cheri-cat blorf.txt
+Blorf!
+
+Now:
+
+root@cheribsd-morello-purecap:~ # gdb-run.sh ./cheri-cat -n blorf.txt
+GNU gdb (GDB) 12.1
+Copyright (C) 2022 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Type "show copying" and "show warranty" for details.
+This GDB was configured as "aarch64-unknown-freebsd13".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<https://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+    <http://www.gnu.org/software/gdb/documentation/>.
+
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from ./cheri-cat...
+Starting program: /root/cheri-cat -n blorf.txt
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability tag fault.
+0x0000000000111fdc in verbose_cat ()
+
+Thread 1 (LWP 100066 of process 1011):
+#0  0x0000000000111fdc in verbose_cat ()
+#1  0x0000000000111e48 in do_cat ()
+#2  0x0000000000111d6c in scanfiles ()
+#3  0x0000000000111ac8 in main ()
+(gdb) 
+
+Yeah, so that was the other warning.
+
+Frustratingly, their gdb tells you which register did it, and mine doesn't:
+
+WE: Capability tag fault.
+
+THEY: Capability tag fault caused by register cs2.
+
+I just have to go info reg and:
+
+pcc            0xb05dc000273700040000000000111fdc 0x111fdc <verbose_cat+364> [rxRE,0x100000-0x133980]
+
+c30            0xb05dc000a73700040000000000111e49 0x111e49 <do_cat+72> [rxRE,0x100000-0x133980] (sentry)
+
+Dump of assembler code from 0x111fdc to 0x111fe0:
+=> 0x0000000000111fdc <verbose_cat+364>:    ldr     w8, [c0, #16]
+End of assembler dump.
+
+Hmmm c0: c0             0x403b15d0          0x403b15d0
+x0             0x403b15d0          1077614032
+c8             0x0                 0x0
+
+Breakpoint 1, 0x0000000000111e88 in verbose_cat ()
+(gdb) p fp
+No symbol "fp" in current context.
+(gdb) p file
+No symbol "file" in current context.
+(gdb) p verbose
+No symbol "verbose" in current context.
+(gdb) p stdin
+No symbol "stdin" in current context.
+(gdb) p fd
+No symbol "fd" in current context.
+(gdb) p STDIN_FILENO
+No symbol "STDIN_FILENO" in current context.
+
+pc             0x111fdc            1122268
+
+?????
+
+They can say "Looking at the above backtrace, we can correlate this output with the source code and see that cs2 holds a value of the fp variable:
+
+
+(gdb) p fp
+$1 = (FILE *) 0x4037a400
+It means that for some reason fp became an invalid capability."
+
+This seems like casting runes to me
+
+At any rate I can't find the equivalent in my own code
+
+SSHPORT=10090 make -f Makefile.morello-purecap cheri-cat
+/home/holiver/cheri/output/morello-sdk/bin/clang --config cheribsd-morello-purecap.cfg     cheri-cat.c   -o cheri-cat
+cheri-cat.c:169:10: warning: cast from provenance-free integer type to pointer type will give pointer that can not be dereferenced [-Wcheri-capability-misuse]
+    fp = (FILE *)file;
+         ^
+1 warning generated.
+holiver@bencher14:~/cheri-examples/cat
+
+It's the same warning they've got
+
+They say "In our case, long is cast to a pointer type which results in a NULL-derived capability without a tag, with an address set to an integer value, and which cannot be dereferenced. We can fix this bug by using a data type that can hold both integer values and pointers - uintptr_t:"
+
+Which, like, that's what I said
+
+====
+
+Q: 7. Get back to the compiler warnings and try to solve a bug that triggered the crash.
+
+----
+
+I did?
+
+====
+
+Q: 8. You just analysed two bugs in cat. How are they different and why they trigger crashes in different ways?
+
+---
+
+A: The first one is about making sure your plain int types are never used in ways that can be mixed up with being a dereferanceable pointer; if you use an int it has to be something that could never be that or that gets folded into a pointer like say an int offset. The way you get round that is to use one of the unambiguous pointer in types like uintptr_t.
+
+And the second one was about provenance: off, the offset, being on the left, was taken to be the provenance one
+
+They say:
+
+"The first bug resulted in a system call error because there was no capability operation on an invalid capability. An operating system could not copy memory from the user address space because it checked if a user process passed an invalid capability and returned an error.
+
+The second bug resulted in a CHERI exception because an invalid capability was used to load a word from memory."
+
+Um OK, if you say so
+
+=====
+
+Try again after completely rebuilding:
+
+4. Run without gdb, get error:
+
+ # ./cheri-cat blorf.txt
+cheri-cat: write(2) failed: Bad address
+
+And now with gdb:
+
+THEY get:
+
+(gdb) b write
+Function "write" not defined.
+Make breakpoint pending on future shared library load? (y or [n]) y
+Breakpoint 1 (write) pending.
+
+I get:
+
+(gdb) b write
+Breakpoint 1 at 0x13248
+
+THEY get:
+
+(gdb) r /etc/hostid
+Starting program: /buildroot/cat-cheri /etc/hostid
+
+Breakpoint 1, write (fd=1, buf=0x40810000, nbytes=37) at /source/cheribsd/lib/libc/sys/write.c:49
+49      /source/cheribsd/lib/libc/sys/write.c: No such file or directory.
+
+I get:
+
+(gdb) r blorf.txt
+Starting program: /root/cheri-cat blorf.txt
+
+Breakpoint 1, write (fd=1, buf=0x4085d000, nbytes=7) at /home/holiver/cheri/cheribsd/lib/libc/sys/write.c:48
+48      /home/holiver/cheri/cheribsd/lib/libc/sys/write.c: No such file or directory.
+
+Now THEY go looking for registers c0, c1, c2.
+
+It seems they are born naturally knowing this is what to look for.
+
+What does the documentation say about these?
+
+I guess, they're just the first place you look.
+
+THEY get:
+
+(gdb) info register ca0 ca1 ca2
+ca0            0x1      0x1
+ca1            0x40810000       0x40810000
+ca2            0x25     0x25
+
+I get:
+
+(gdb) info reg c0 c1 c2
+c0             0x1                 0x1
+c1             0x4085d000          0x4085d000
+c2             0x7                 0x7
+
+They disassemble and THEY get:
+
+(gdb) disassemble 
+Dump of assembler code for function write:
+=> 0x0000000040295dc4 <+0>:       auipc   a3,0xc2
+   0x0000000040295dc8 <+4>:       lc      ca3,1532(a3) # 0x403583c0 <_CHERI_CAPABILITY_TABLE_+2464>
+   0x0000000040295dcc <+8>:       lc      ca5,496(a3)
+   0x0000000040295dd0 <+12>:      cjr     ca5
+End of assembler dump.
+
+I disassemble and I get:
+
+(gdb) disassemble
+Dump of assembler code for function write:
+=> 0x00000000402c9d40 <+0>:       adrp    c3, 0x40389000
+   0x00000000402c9d44 <+4>:       ldr     c3, [c3, #2528]
+   0x00000000402c9d48 <+8>:       ldr     c3, [c3, #496]
+   0x00000000402c9d4c <+12>:      br      c3
+End of assembler dump.
+
+PREVIOUSLY I got:
+
+=> 0x00000000402c9d40 <+0>:       adrp    c3, 0x40389000
+   0x00000000402c9d44 <+4>:       ldr     c3, [c3, #2528]
+   0x00000000402c9d48 <+8>:       ldr     c3, [c3, #496]
+   0x00000000402c9d4c <+12>:      br      c3
+End of assembler dump.
+
+Breakpoint 1, 0x0000000000111e14 in do_cat ()
+
+So, I am getting the same as I got before, updating and recompiling made 0 difference
+
+The thing they have that I don't is:
+
+# 0x403583c0 <_CHERI_CAPABILITY_TABLE_+2464>
+
+THEY say:
+
+"We can see that write() was called to write to stdout (ca0) 37 bytes (ca2) from a buffer with an untagged capability (ca1).""
+
+Really? How can we see this?
+
+They know that Breakpoint 1, write (fd=1, buf=0x40810000, nbytes=37) 
+
+and on info reg they got
+ca1            0x40810000       0x40810000
+
+So they just happened to pick the right reg to display.
+
+I got:
+Breakpoint 1, write (fd=1, buf=0x4085d000, nbytes=7) at 
+
+so where's this 4085d000
+
+Which, lo and behold, is c1             0x4085d000          0x4085d000.
+
+So, yes, this is the same untagged capability c1 as they were getting.
+You may well ask, how do we know stdout is c0?
+
+Because of this line of code:
+return (write(fildes, (const void *)(off + (uintptr_t)buf), nbyte));
+
+THEY get:
+Breakpoint 1, write (fd=1, buf=0x40810000, nbytes=37)
+
+I get:
+Breakpoint 1, write (fd=1, buf=0x4085d000, nbytes=7) at 
+
+So in both cases, the file descriptor is 1.
+And which of these registers that we just looked at, holds 1?
+
+c0             0x1                 0x1
+
+And that is stdout because 1 is stdout for the fd param:
+
+"The values 0, 1, 2 can also be given, for standard input, standard output & standard error, respectively."
+In the POSIX usage table row for fd, here: https://en.wikipedia.org/wiki/Write_(system_call)
+
+How do we know this is an untagged capability? Don't know.
+
+Why... is it untagged though. Like really Let's look at
+
+0x4085d000
+
+Let's look at info reg
+
+x1             0x4085d000          1082511360
+x3             0x4085d000          1082511360
+x5             0x4085d000          1082511360
+x8             0x4085d000          1082511360
+x9             0x4085d000          1082511360
+c1             0x4085d000          0x4085d000
+c3             0xdc5d40006000d000000000004085d000 0x4085d000 [rwRW,0x4085d000-0x4085e000]
+c5             0xdc5d40006000d000000000004085d000 0x4085d000 [rwRW,0x4085d000-0x4085e000]
+c8             0x4085d000          0x4085d000
+c9             0x4085d000          0x4085d000
+
+Well, is it because... there's no range? Is that it? That's how we know there's an untagged capability?
+
+====
+
+And then
+
+*I* get 
+
+gdb-run.sh ./cheri-cat -n blorf.txt
+GNU gdb (GDB) 12.1
+Copyright (C) 2022 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Type "show copying" and "show warranty" for details.
+This GDB was configured as "aarch64-unknown-freebsd13".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<https://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+    <http://www.gnu.org/software/gdb/documentation/>.
+
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from ./cheri-cat...
+Starting program: /root/cheri-cat -n blorf.txt
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability tag fault.
+0x0000000000111fdc in verbose_cat ()
+
+Thread 1 (LWP 100067 of process 1032):
+#0  0x0000000000111fdc in verbose_cat ()
+#1  0x0000000000111e48 in do_cat ()
+
+THEY got:
+
+# gdb-run.sh ./cat-cheri -n /etc/hostid
+(...)
+Starting program: /buildroot/cat-cheri -n /etc/hostid
+
+Program received signal SIGPROT, CHERI protection violation
+Capability tag fault caused by register cs2.
+verbose_cat (file=<optimized out>) at ./src/exercises/adapt-c/cat/methods.c:87
+87      ./src/exercises/adapt-c/cat/methods.c: No such file or directory.
+
+Thread 1 (LWP 100043 of process 808):
+#0  verbose_cat (file=<optimized out>) at ./src/exercises/adapt-c/cat/methods.c:87
+#1  do_cat (file=<optimized out>, verbose=<optimized out>) at ./src/exercises/adapt-c/cat/methods.c:214
+#2  0x0000000000102f1a in scanfiles (argv=<optimized out>, verbose=<optimized out>) at ./src/exercises/adapt-c/cat/cat.c:172
+#3  0x0000000000102d8c in main (argc=<optimized out>, argv=<optimized out>) at ./src/exercises/adapt-c/cat/cat.c:128
+(gdb) 
+
+So THEY got:
+
+Capability tag fault caused by register cs2.
+
+I got:
+
+0x0000000000111fdc in verbose_cat ()
+
+but that's it.
+
+They are able to look up cs2 and get:
+
+(gdb) info register cs2
+cs2            0x4037a400       0x4037a400
+
+but that isn't info that is showing any place else in any output we've seen so far. They know which cap it is because they're told.
+
+Let's look at the info I've got:
+
+Thread 1 (LWP 100067 of process 1032):
+#0  0x0000000000111fdc in verbose_cat ()
+#1  0x0000000000111e48 in do_cat ()
+--Type <RET> for more, q to quit, c to continue without paging--
+#2  0x0000000000111d6c in scanfiles ()
+#3  0x0000000000111ac8 in main ()
+
+info reg
+x0             0x403b15d0          1077614032
+x1             0xfffffff7fd54      281474976185684
+x2             0xfffffff7fd58      281474976185688
+x3             0x402b4431          1076577329
+x4             0x402c9a79          1076664953
+x5             0xfffffff7fe70      281474976185968
+x6             0x0                 0
+x7             0x40330eb9          1077087929
+x8             0x0                 0
+x9             0x4039d770          1077532528
+x10            0x0                 0
+x11            0x427               1063
+x12            0x0                 0
+x13            0x3eb8              16056
+x14            0x10e8              4328
+x15            0x1ef0              7920
+x16            0x402c9a3d          1076664893
+x17            0xfffffff7fd10      281474976185616
+x18            0xffffffffffffffff  -1
+x19            0x401502e9          1075118825
+x20            0xffffbff7f8b0      281473902442672
+x21            0xffffbff7f870      281473902442608
+x22            0x3                 3
+x23            0x0                 0
+x24            0x0                 0
+x25            0x0                 0
+x26            0x0                 0
+x27            0x0                 0
+x28            0x0                 0
+x29            0xfffffff7fd80      281474976185728
+x30            0x111e49            1121865
+sp             0xfffffff7fc70      281474976185456
+pc             0x111fdc            1122268
+cpsr           0x24000200          [ EL=0 D BTYPE=0 C64 C ]
+fpsr           0x0                 [ ]
+fpcr           0x0                 [ RMode=0 ]
+c0             0x403b15d0          0x403b15d0
+c1             0xdc5d40007d58fd540000fffffff7fd54 0xfffffff7fd54 [rwRW,0xfffffff7fd54-0xfffffff7fd58]
+c2             0xdc5d40007d5cfd580000fffffff7fd58 0xfffffff7fd58 [rwRW,0xfffffff7fd58-0xfffffff7fd5c]
+c3             0xb05fc000bdf6192700000000402b4431 0x402b4431 <__sclose> [rxRE,0x40192000-0x407df000] (sentry)
+c4             0xb05fc000bdf6192700000000402c9a79 0x402c9a79 <__sys_openat> [rxRE,0x40192000-0x407df000] --Type <RET> for more, q to quit, 
+(sentry)
+c5             0xdc5d40007e80fe700000fffffff7fe70 0xfffffff7fe70 [rwRW,0xfffffff7fe70-0xfffffff7fe80]
+c6             0x0                 0x0
+c7             0xb05fc000bdf619270000000040330eb9 0x40330eb9 <extent_split_default> [rxRE,0x40192000-0x407df000] (sentry)
+c8             0x0                 0x0
+c9             0x4039d770          0x4039d770
+c10            0x0                 0x0
+c11            0x427               0x427
+c12            0x0                 0x0
+c13            0x3eb8              0x3eb8
+c14            0x10e8              0x10e8
+c15            0x1ef0              0x1ef0
+c16            0xb05fc000bdf6192700000000402c9a3d 0x402c9a3d <__sys_fcntl> [rxRE,0x40192000-0x407df000] (sentry)
+c17            0xdc5d40003ffdbfff0000fffffff7fd10 0xfffffff7fd10 [rwRW,0xffffbff80000-0xfffffff80000]
+c18            0xffffffffffffffff  0xffffffffffffffff
+c19            0xb05dc000873f330300000000401502e9 0x401502e9 <rtld_nop_exit> [rxRE,0x40133000-0x40187380] (sentry)
+c20            0xdc5d400079b0f8b00000ffffbff7f8b0 0xffffbff7f8b0 [rwRW,0xffffbff7f8b0-0xffffbff7f9b0]
+c21            0xdc5d400078b0f8700000ffffbff7f870 0xffffbff7f870 [rwRW,0xffffbff7f870-0xffffbff7f8b0]
+c22            0x3                 0x3
+c23            0x0                 0x0
+c24            0x0                 0x0
+c25            0x0                 0x0
+c26            0x0                 0x0
+c27            0x0                 0x0
+c28            0x0                 0x0
+c29            0xdc5d40003ffdbfff0000fffffff7fd80 0xfffffff7fd80 [rwRW,0xffffbff80000-0xfffffff80000]
+c30            0xb05dc000a73700040000000000111e49 0x111e49 <do_cat+72> [rxRE,0x100000-0x133980] (sentry)
+csp            0xdc5d40003ffdbfff0000fffffff7fc70 0xfffffff7fc70 [rwRW,0xffffbff80000-0xfffffff80000]
+pcc            0xb05dc000273700040000000000111fdc 0x111fdc <verbose_cat+364> [rxRE,0x100000-0x133980]
+ddc            0x0                 0x0
+ctpidr         0xdc5d4000051f70470000000040807050 0x40807050 [rwRW,0x40807040-0x4080c518]
+rcsp           0x0                 0x0
+rddc           0x0                 0x0
+rctpidr        0x0                 0x0
+cid            0x0                 0x0
+cctlr          <unavailable>
+
+
+OK so we got:
+pc             0x111fdc            1122268
+pcc            0xb05dc000273700040000000000111fdc 0x111fdc <verbose_cat+364> [rxRE,0x100000-0x133980]
+
+111e48 - nowhere?
+
+111d6c - nowhere?
+
+111ac8 - nowhere?
+
+Well, they wouldn't be because it's all in reverse order so that does make sense
+
+And it's not unknown for pc and pcc to hold the only detectable values
+
+THEY say: 
+"cs2 holds an untagged capability and the program tries to load a word using cs2 which violates CHERI restrictions:"
+
+THEY go:
+(gdb) disassemble $pcc,+4
+Dump of assembler code from 0x103094 to 0x103098:
+=> 0x0000000000103094 <do_cat+228>: lw      a0,16(s2)
+End of assembler dump.
+(gdb) 
+
+I go:
+ disassemble $pcc,+4
+Dump of assembler code from 0x111fdc to 0x111fe0:
+=> 0x0000000000111fdc <verbose_cat+364>:    ldr     w8, [c0, #16]
+End of assembler dump.
+
+And c0 is:
+c0             0x403b15d0          0x403b15d0 noooo
+
+c8             0x0                 0x0
+
+so, like, I don't? see? C0 holds an untagged capability
+and yes, yes, this is my code trying to load a word using c0 and yes, that does violate CHERI restrictions
+
+And THEY have: Dump of assembler code from 0x103094
+which isn't seen anywhere else
+
+and I have: 
+0x111fdc
+which, yeah. isn't seen anywhere else
+
+THEY say:
+
+"Looking at the above backtrace, we can correlate this output with the source code and see that cs2 holds a value of the fp variable:"
+
+Um. How?
+
+They have:
+(gdb) disassemble $pcc,+4
+Dump of assembler code from 0x103094 to 0x103098:
+=> 0x0000000000103094 <do_cat+228>: lw      a0,16(s2)
+End of assembler dump.
+(gdb) 
+
+
+So looking in do_cat or 
+
+ disassemble $pcc,+4
+Dump of assembler code from 0x111fdc to 0x111fe0:
+=> 0x0000000000111fdc <verbose_cat+364>:    ldr     w8, [c0, #16]
+End of assembler dump.
+
+Yes, I can't see their cs2 or fp or whatever, but I can see in verbose_cat so
+
+p fp or anything else doesn't work because there's no more history
+
+And I try running it again and same output:
+
+Program received signal SIGPROT, CHERI protection violation.
+Capability tag fault.
+0x0000000000111fdc in verbose_cat ()
+
+Thread 1 (LWP 100076 of process 1035):
+#0  0x0000000000111fdc in verbose_cat ()
+#1  0x0000000000111e48 in do_cat ()
+--Type <RET> for more, q to quit, c to continue without paging--
+#2  0x0000000000111d6c in scanfiles ()
+#3  0x0000000000111ac8 in main ()
+(gdb) p fd
+No symbol "fd" in current context.
+(gdb) p stdin
+No symbol "stdin" in current context.
+(gdb) p verbose
+No symbol "verbose" in current context.
+(gdb) p fp
+No symbol "fp" in current context.
+(gdb) 
+
+So, I can't do anything with that.
+
+cs2 is cs2            0x4037a400
+and fp is p fp
+$1 = (FILE *) 0x4037a400
+
+but, what we have got, from the compilation warning, is this clue:
+
+cheri-cat.c:169:10: warning: cast from provenance-free integer type to pointer type will give pointer that can not be dereferenced [-Wcheri-capability-misuse]
+    fp = (FILE *)file;
+    
+and then in verbose_cat:
+
+FILE *fp;
+
+so p fp makes sense
+
+Let's go with b do_cat
+
+(gdb) b do_cat
+Breakpoint 1 at 0x11e14
+(gdb) r blorf.txt
+Starting program: /root/cheri-cat blorf.txt
+
+Breakpoint 1, 0x0000000000111e14 in do_cat ()
+(gdb) p fp
+No symbol "fp" in current context.
+(gdb) c
+Continuing.
+Blorf!
+[Inferior 1 (process 1040) exited normally]
+(gdb) p fp
+No symbol "fp" in current context.
+(gdb) 
+
+eyeroll
+
+So, the write one failed because it sees "off + [etc]" and it goes, oh this int must be a  capability or maybe it even is one and, being on the left hand side, let's look here for provenance? Even though it could be on the right hand side? but no, off is just an int that we're adding on as an offset, so if we put (size_t) we wouldn't have a problem beause the compiler would just go oh it's an int, and be done with it
+
+The second one failed because the file descriptor is a long, and using longs on their own is a no-no where it could be cast to a pointer type. You gotta use uintptr_t. Then it will know.
+
+
+
+
+
+
